@@ -1,0 +1,21 @@
+{
+  "name": "ebook-deal-crawler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Crawl Taiwan ebook limited-time deals from Readmoo, Kobo, Books.com.tw, and Pubu, then export Google Sheets CSV and Discord embeds.",
+  "scripts": {
+    "start": "node src/index.js",
+    "crawl": "node src/index.js",
+    "dry": "DRY_RUN=1 node src/index.js",
+    "check": "node --check src/index.js && node --check src/sources/readmoo.js && node --check src/sources/kobo.js && node --check src/sources/booksTw.js && node --check src/sources/pubu.js && node --check src/output/discord.js && node --check src/output/sheetsCsv.js && node --check scripts/validate-env.js",
+    "validate:deploy": "node scripts/validate-env.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.7",
+    "fast-csv": "^5.0.2",
+    "googleapis": "^144.0.0",
+    "playwright": "^1.49.1"
+  }
+}

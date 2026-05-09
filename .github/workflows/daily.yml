@@ -1,0 +1,68 @@
+name: Daily ebook deals
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '1 = only generate artifacts, 0 = update Google Sheets and Discord'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - '1'
+          - '0'
+      sources:
+        description: 'Comma-separated sources'
+        required: true
+        default: 'readmoo,kobo,booksTw,pubu'
+      discord_test_mode:
+        description: 'Prefix Discord embed as TEST'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - '1'
+          - '0'
+  schedule:
+    # 00:10 Asia/Taipei
+    - cron: '10 16 * * *'
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - name: Validate deployment environment
+        run: npm run validate:deploy
+        env:
+          TZ: Asia/Taipei
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || '0' }}
+          REQUIRE_TARGETS: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == '1' && '0' || '1' }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      - run: npm run crawl
+        env:
+          TZ: Asia/Taipei
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || '0' }}
+          SOURCES: ${{ github.event_name == 'workflow_dispatch' && inputs.sources || 'readmoo,kobo,booksTw,pubu' }}
+          DISCORD_TEST_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.discord_test_mode || '0' }}
+          FAIL_ON_SOURCE_ERROR: '0'
+          MIN_DEALS: '10'
+          GOOGLE_SHEET_TAB: 每日特價
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      - name: Upload generated reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ebook-deal-reports
+          path: output/
+          if-no-files-found: warn

@@ -1,0 +1,86 @@
+import * as cheerio from 'cheerio';
+import { SOURCES } from '../../config/sources.js';
+import { fetchHtml } from '../utils/http.js';
+import { absoluteUrl, cleanText, numberFromText, stripTracking } from '../utils/text.js';
+import { isoDateFromTaiwanMonthDay, taipeiToday } from '../utils/date.js';
+
+const CONFIG = SOURCES.booksTw;
+
+function parseCalendarLinks($) {
+  const rows = [];
+  $('a[href*="calendar.google.com/calendar/render"]').each((_, node) => {
+    try {
+      const href = $(node).attr('href');
+      const url = new URL(href);
+      const text = cleanText(decodeURIComponent(url.searchParams.get('text') || ''));
+      const details = cleanText(decodeURIComponent(url.searchParams.get('details') || ''));
+      const dates = cleanText(url.searchParams.get('dates') || '');
+      const productUrl = (details.match(/https:\/\/www\.books\.com\.tw\/products\/E[0-9A-Z]+/) || [''])[0];
+      const price = numberFromText(text.match(/NT\$?\s*([0-9]+)/)?.[1] || text);
+      const startDate = dates ? `${dates.slice(0, 4)}-${dates.slice(4, 6)}-${dates.slice(6, 8)}` : '';
+      const endRaw = dates.includes('/') ? dates.split('/')[1] : '';
+      const endDate = endRaw ? `${endRaw.slice(0, 4)}-${endRaw.slice(4, 6)}-${endRaw.slice(6, 8)}` : startDate;
+      if (productUrl) rows.push({ title: text.replace(/\s*NT\$?.*$/, ''), productUrl, price, startDate, endDate });
+    } catch {
+      // Ignore malformed calendar links.
+    }
+  });
+  return rows;
+}
+
+export async function fetchBooksTwDeals() {
+  const html = await fetchHtml(CONFIG.sourcePage);
+  const $ = cheerio.load(html);
+  const today = taipeiToday();
+  const byUrl = new Map();
+
+  for (const row of parseCalendarLinks($)) {
+    byUrl.set(stripTracking(row.productUrl), {
+      platform: CONFIG.platform,
+      campaignType: '每日e書99',
+      title: row.title,
+      salePrice: row.price || '',
+      startDate: row.startDate || today,
+      endDate: row.endDate || row.startDate || today,
+      url: stripTracking(row.productUrl),
+      sourcePage: CONFIG.sourcePage,
+      fetchMethod: CONFIG.method,
+      confidence: 'high'
+    });
+  }
+
+  $('a[href*="/products/E"]').each((_, node) => {
+    const href = stripTracking(absoluteUrl($(node).attr('href'), CONFIG.sourcePage));
+    const card = $(node).closest('li, .mod, .item, .box, div');
+    const text = cleanText(card.text() || $(node).text());
+    const img = card.find('img').first();
+    const coverUrl = absoluteUrl(img.attr('src') || img.attr('data-src'), CONFIG.sourcePage);
+    const title = cleanText($(node).attr('title') || $(node).text() || text.split('作者')[0]);
+    const prices = [...text.matchAll(/\$?\s*([0-9]{2,5})/g)].map(match => Number(match[1]));
+    const originalPrice = prices.length > 1 ? prices[0] : '';
+    const salePrice = prices.length ? prices[prices.length - 1] : '';
+    const dateText = text.match(/(\d{1,2}\/\d{1,2})/)?.[1] || '';
+    const startDate = isoDateFromTaiwanMonthDay(dateText) || today;
+
+    if (!href || !title || !/E\d+/.test(href)) return;
+    const existing = byUrl.get(href) || {};
+    const existingTitleLooksLikeCalendar = /加入行事曆|\d{1,2}\/\d{1,2}/.test(existing.title || '');
+    byUrl.set(href, {
+      platform: CONFIG.platform,
+      campaignType: existing.campaignType || '活動頁電子書',
+      title: !existing.title || existingTitleLooksLikeCalendar ? title : existing.title,
+      author: cleanText(text.match(/作者[:：]?\s*([^$優惠價]+)/)?.[1] || ''),
+      originalPrice: existing.originalPrice || originalPrice,
+      salePrice: existing.salePrice || salePrice,
+      startDate: existing.startDate || startDate,
+      endDate: existing.endDate || startDate,
+      url: href,
+      coverUrl,
+      sourcePage: CONFIG.sourcePage,
+      fetchMethod: CONFIG.method,
+      confidence: existing.confidence || 'medium'
+    });
+  });
+
+  return [...byUrl.values()].filter(row => [66, 99].includes(Number(row.salePrice)));
+}

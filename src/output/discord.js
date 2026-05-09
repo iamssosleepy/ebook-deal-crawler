@@ -101,14 +101,55 @@ export async function writeDiscordPayload(rows, outputDir) {
   return filePath;
 }
 
-export async function postDiscord(payload, webhookUrl) {
-  const response = await fetch(webhookUrl, {
+function defaultThreadName() {
+  const today = taipeiToday();
+  const testMode = process.env.DISCORD_TEST_MODE === '1';
+  return `${testMode ? '[測試] ' : ''}電子書特價日報 ${today}`;
+}
+
+function buildWebhookUrl(webhookUrl, threadId) {
+  if (!threadId) return webhookUrl;
+  const url = new URL(webhookUrl);
+  url.searchParams.set('thread_id', threadId);
+  return url.toString();
+}
+
+async function sendDiscord(webhookUrl, payload, threadId) {
+  const url = buildWebhookUrl(webhookUrl, threadId);
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Discord webhook failed: HTTP ${response.status} ${body}`);
+  const body = await response.text();
+  return { ok: response.ok, status: response.status, body };
+}
+
+export async function postDiscord(payload, webhookUrl) {
+  const threadId = process.env.DISCORD_THREAD_ID || '';
+  const threadName = process.env.DISCORD_THREAD_NAME || '';
+
+  const initialPayload = { ...payload };
+  if (!threadId && threadName) {
+    initialPayload.thread_name = threadName;
   }
+
+  let result = await sendDiscord(webhookUrl, initialPayload, threadId);
+  if (result.ok) return;
+
+  if (result.status === 400 && !threadId && !initialPayload.thread_name) {
+    let parsed;
+    try {
+      parsed = JSON.parse(result.body);
+    } catch {
+      parsed = null;
+    }
+    if (parsed && parsed.code === 220001) {
+      const retryPayload = { ...payload, thread_name: defaultThreadName() };
+      result = await sendDiscord(webhookUrl, retryPayload, '');
+      if (result.ok) return;
+    }
+  }
+
+  throw new Error(`Discord webhook failed: HTTP ${result.status} ${result.body}`);
 }

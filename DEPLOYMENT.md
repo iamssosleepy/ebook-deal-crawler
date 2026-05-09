@@ -28,6 +28,8 @@ Settings → Secrets and variables → Actions → New repository secret
 | `GOOGLE_SHEET_TAB` | workflow env（已內建） | 工作表分頁名稱，固定為 `每日特價` |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | GitHub Secret | Google service account JSON，必須壓成單行 |
 | `DISCORD_WEBHOOK_URL` | GitHub Secret | Discord 頻道 webhook URL，由程式以 webhook 方式 POST |
+| `DISCORD_THREAD_ID` | GitHub Secret（選用） | 僅 forum channel webhook 需要：要貼進的 forum thread ID |
+| `DISCORD_THREAD_NAME` | GitHub Secret（選用） | 僅 forum channel webhook 需要：每次推播建立新 thread 時的標題 |
 
 > Discord 整合僅以 webhook 方式呼叫，不會在原始碼中硬編碼 webhook URL，也不會把 service account JSON 寫進 repo。所有敏感值都從 `process.env` 讀取。
 
@@ -61,6 +63,17 @@ Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL
 ```
 
 把 URL 放到 GitHub secret `DISCORD_WEBHOOK_URL`。**不要把實際 URL 提交進 repo**，程式只會從環境變數讀取。
+
+### Forum channel webhook
+
+若你要把推播送進 **forum channel**（而不是一般文字頻道），Discord 會強制要求每則 webhook 附 `thread_name` 或 `thread_id`，否則會回 `HTTP 400 {"code":220001}`。本程式支援兩種設法：
+
+- `DISCORD_THREAD_ID`（GitHub Secret，選用）：要貼進的現存 forum thread ID。設了之後 webhook 會自動加 `?thread_id=...`。
+- `DISCORD_THREAD_NAME`（GitHub Secret，選用）：每次推播都建立一個新的 forum post 標題。
+
+兩者都沒設的情況下，若 Discord 回 `code 220001`，程式會自動以預設標題 `電子書特價日報 YYYY-MM-DD`（`DISCORD_TEST_MODE=1` 時前綴 `[測試] `）重試一次。
+
+一般文字頻道 webhook 不要設這兩個 secrets，行為與原本完全相同。
 
 ## 手動測試
 

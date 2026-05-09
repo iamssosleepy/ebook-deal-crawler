@@ -94,6 +94,19 @@ DRY_RUN=0
 npm run crawl
 ```
 
+### Forum 頻道 webhook（選用）
+
+若 webhook 指向 **Discord forum channel**，Discord 規定每則貼文必須附帶 `thread_id` 或 `thread_name`，否則會回傳 `HTTP 400 code 220001`。提供兩個可選的環境變數：
+
+| 名稱 | 用途 |
+|---|---|
+| `DISCORD_THREAD_ID` | 直接貼進現存的 forum thread。設了之後會以 `?thread_id=` 加在 webhook URL 上。 |
+| `DISCORD_THREAD_NAME` | 每次推播都建立一個新 forum post，標題用這個值。 |
+
+兩者都沒設的情況下，若 Discord 回 `code 220001`，程式會自動重試一次，使用預設 thread name `電子書特價日報 YYYY-MM-DD`（`DISCORD_TEST_MODE=1` 時前綴 `[測試] `）。
+
+一般文字頻道 webhook 不要設這兩個變數，行為與原本完全相同。
+
 ## GitHub Actions 排程
 
 已附 `.github/workflows/daily.yml`，預設每天台灣時間 00:10 左右執行。GitHub Actions 使用 UTC，所以 cron 是 `10 16 * * *`。

@@ -57,6 +57,8 @@ jobs:
           MIN_DEALS: '10'
           GOOGLE_SHEET_TAB: 每日特價
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_THREAD_ID: ${{ secrets.DISCORD_THREAD_ID }}
+          DISCORD_THREAD_NAME: ${{ secrets.DISCORD_THREAD_NAME }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
       - name: Upload generated reports

@@ -9,19 +9,23 @@ const CONFIG = SOURCES.booksTw;
 
 function parseCalendarLinks($) {
   const rows = [];
-  $('a[href*="calendar.google.com/calendar/render"]').each((_, node) => {
+  $('a[href*="google.com/calendar/render"]').each((_, node) => {
     try {
       const href = $(node).attr('href');
       const url = new URL(href);
       const text = cleanText(decodeURIComponent(url.searchParams.get('text') || ''));
-      const details = cleanText(decodeURIComponent(url.searchParams.get('details') || ''));
+      const detailsRaw = decodeURIComponent(url.searchParams.get('details') || '');
+      const details = cleanText(detailsRaw);
       const dates = cleanText(url.searchParams.get('dates') || '');
       const productUrl = (details.match(/https:\/\/www\.books\.com\.tw\/products\/E[0-9A-Z]+/) || [''])[0];
       const price = numberFromText(text.match(/NT\$?\s*([0-9]+)/)?.[1] || text);
       const startDate = dates ? `${dates.slice(0, 4)}-${dates.slice(4, 6)}-${dates.slice(6, 8)}` : '';
       const endRaw = dates.includes('/') ? dates.split('/')[1] : '';
       const endDate = endRaw ? `${endRaw.slice(0, 4)}-${endRaw.slice(4, 6)}-${endRaw.slice(6, 8)}` : startDate;
-      if (productUrl) rows.push({ title: text.replace(/\s*NT\$?.*$/, ''), productUrl, price, startDate, endDate });
+      const detailLines = detailsRaw.split(/\r?\n/).map(cleanText).filter(Boolean);
+      const title = detailLines.find(line => !/^商品連結：?https?:\/\//.test(line))
+        || text.replace(/^.*?元[-－]/, '').replace(/\s*NT\$?.*$/, '');
+      if (productUrl) rows.push({ title, productUrl, price, startDate, endDate });
     } catch {
       // Ignore malformed calendar links.
     }

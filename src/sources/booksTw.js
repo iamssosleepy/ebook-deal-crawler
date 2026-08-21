@@ -3,6 +3,7 @@ import { SOURCES } from '../../config/sources.js';
 import { fetchHtml } from '../utils/http.js';
 import { absoluteUrl, cleanText, numberFromText, stripTracking } from '../utils/text.js';
 import { isoDateFromTaiwanMonthDay, taipeiToday } from '../utils/date.js';
+import { fetchOfficialMarkdown } from '../utils/proxy.js';
 
 const CONFIG = SOURCES.booksTw;
 
@@ -29,7 +30,13 @@ function parseCalendarLinks($) {
 }
 
 export async function fetchBooksTwDeals() {
-  const html = await fetchHtml(CONFIG.sourcePage);
+  let html;
+  try {
+    html = await fetchHtml(CONFIG.sourcePage);
+  } catch {
+    const markdown = await fetchOfficialMarkdown(CONFIG.sourcePage);
+    return parseBooksMarkdown(markdown);
+  }
   const $ = cheerio.load(html);
   const today = taipeiToday();
   const byUrl = new Map();
@@ -83,4 +90,39 @@ export async function fetchBooksTwDeals() {
   });
 
   return [...byUrl.values()].filter(row => [66, 99].includes(Number(row.salePrice)));
+}
+
+function parseBooksMarkdown(markdown) {
+  const rows = [];
+  const calendarLinks = [...markdown.matchAll(/\[加入行事曆]\((https:\/\/www\.google\.com\/calendar\/render\?[^)]+)\)/g)];
+  for (const match of calendarLinks) {
+    try {
+      const calendar = new URL(match[1].replaceAll('&amp;', '&'));
+      const text = cleanText(calendar.searchParams.get('text') || '');
+      const details = decodeURIComponent(calendar.searchParams.get('details') || '');
+      const dates = calendar.searchParams.get('dates') || '';
+      const productUrl = (details.match(/https:\/\/www\.books\.com\.tw\/products\/E[0-9A-Z]+/) || [''])[0];
+      const title = cleanText(details.split('\n').slice(1).join(' ')) || text.replace(/^.*?元[-－]/, '');
+      const price = numberFromText((text.match(/(?:66|99)元/) || [''])[0]);
+      const [startRaw = '', endRaw = ''] = dates.split('/');
+      const startDate = startRaw ? `${startRaw.slice(0, 4)}-${startRaw.slice(4, 6)}-${startRaw.slice(6, 8)}` : '';
+      const endDate = endRaw ? `${endRaw.slice(0, 4)}-${endRaw.slice(4, 6)}-${endRaw.slice(6, 8)}` : startDate;
+      if (!productUrl || ![66, 99].includes(price)) continue;
+      rows.push({
+        platform: CONFIG.platform,
+        campaignType: price === 66 ? '週末e書66' : '每日e書99',
+        title,
+        salePrice: price,
+        startDate,
+        endDate,
+        url: stripTracking(productUrl),
+        sourcePage: CONFIG.sourcePage,
+        fetchMethod: 'official-markdown-proxy',
+        confidence: 'high'
+      });
+    } catch {
+      // Ignore malformed calendar records.
+    }
+  }
+  return rows;
 }

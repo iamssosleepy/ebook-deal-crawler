@@ -49,6 +49,10 @@ async function main() {
   console.log(`Crawling sources: ${sources.join(', ')}`);
 
   const results = await Promise.all(sources.map(runFetcher));
+  const incomplete = results.filter(result => result.error || result.rows.length === 0);
+  if (process.env.REQUIRE_ALL_SOURCES === '1' && incomplete.length) {
+    throw new Error(`Refusing to publish incomplete crawl: ${incomplete.map(result => result.name).join(', ')}`);
+  }
   const rawDeals = results.flatMap(result => result.rows);
   const rows = normalizeDeals(rawDeals);
   const minDeals = Number(process.env.MIN_DEALS || 0);

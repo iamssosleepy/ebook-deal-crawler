@@ -54,6 +54,7 @@ jobs:
           SOURCES: ${{ github.event_name == 'workflow_dispatch' && inputs.sources || 'readmoo,kobo,booksTw,pubu' }}
           DISCORD_TEST_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.discord_test_mode || '0' }}
           FAIL_ON_SOURCE_ERROR: '0'
+          REQUIRE_ALL_SOURCES: '1'
           MIN_DEALS: '10'
           GOOGLE_SHEET_TAB: 每日特價
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

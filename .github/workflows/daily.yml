@@ -29,7 +29,7 @@ on:
 
 jobs:
   crawl:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, ebook-deals]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,7 +37,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npx playwright install chromium --with-deps
+      - run: npx playwright install chromium
       - name: Validate deployment environment
         run: npm run validate:deploy
         env:

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDiscordPayload } from '../src/output/discord.js';
+import { buildDiscordPayload, buildWebhookUrl } from '../src/output/discord.js';
 
 test('footer lists only sources present in the report', () => {
   process.env.DISCORD_TEST_MODE = '1';
@@ -33,4 +33,10 @@ test('footer lists only sources present in the report', () => {
   assert.match(payload.embeds[0].title, /^\[TEST\]/);
   assert.equal(payload.embeds[0].footer.text, '資料來源：Kobo / Pubu｜自動爬蟲整理');
   assert.doesNotMatch(payload.embeds[0].footer.text, /博客來/);
+});
+
+test('webhook requests a receipt without dropping a forum thread id', () => {
+  const url = new URL(buildWebhookUrl('https://discord.com/api/webhooks/1/example', 'thread-123'));
+  assert.equal(url.searchParams.get('thread_id'), 'thread-123');
+  assert.equal(url.searchParams.get('wait'), 'true');
 });

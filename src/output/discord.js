@@ -117,10 +117,10 @@ function defaultThreadName() {
   return `${testMode ? '[測試] ' : ''}電子書特價日報 ${today}`;
 }
 
-function buildWebhookUrl(webhookUrl, threadId) {
-  if (!threadId) return webhookUrl;
+export function buildWebhookUrl(webhookUrl, threadId) {
   const url = new URL(webhookUrl);
-  url.searchParams.set('thread_id', threadId);
+  if (threadId) url.searchParams.set('thread_id', threadId);
+  url.searchParams.set('wait', 'true');
   return url.toString();
 }
 
@@ -132,7 +132,13 @@ async function sendDiscord(webhookUrl, payload, threadId) {
     body: JSON.stringify(payload)
   });
   const body = await response.text();
-  return { ok: response.ok, status: response.status, body };
+  let message = null;
+  try {
+    message = body ? JSON.parse(body) : null;
+  } catch {
+    message = null;
+  }
+  return { ok: response.ok, status: response.status, body, message };
 }
 
 export async function postDiscord(payload, webhookUrl) {
@@ -145,7 +151,7 @@ export async function postDiscord(payload, webhookUrl) {
   }
 
   let result = await sendDiscord(webhookUrl, initialPayload, threadId);
-  if (result.ok) return;
+  if (result.ok) return result.message || {};
 
   if (result.status === 400 && !threadId && !initialPayload.thread_name) {
     let parsed;
@@ -157,7 +163,7 @@ export async function postDiscord(payload, webhookUrl) {
     if (parsed && parsed.code === 220001) {
       const retryPayload = { ...payload, thread_name: defaultThreadName() };
       result = await sendDiscord(webhookUrl, retryPayload, '');
-      if (result.ok) return;
+      if (result.ok) return result.message || {};
     }
   }
 

@@ -1,0 +1,46 @@
+name: Ebook crawler Discord acceptance test
+
+on:
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: Sources verified on the Laptop network
+        required: true
+        default: readmoo,kobo,pubu
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ebook-crawler-discord-acceptance
+  cancel-in-progress: false
+
+jobs:
+  test-discord:
+    runs-on: [self-hosted, linux, x64, ebook-deals, laptop]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Send one visibly marked test digest without writing Google Sheets
+        run: npm run crawl
+        env:
+          TZ: Asia/Taipei
+          DRY_RUN: '0'
+          SOURCES: ${{ inputs.sources }}
+          REQUIRE_ALL_SOURCES: '1'
+          FAIL_ON_SOURCE_ERROR: '1'
+          MIN_DEALS: '10'
+          DISCORD_TEST_MODE: '1'
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      - name: Upload generated reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ebook-deal-discord-acceptance-${{ github.run_id }}
+          path: output/
+          if-no-files-found: warn

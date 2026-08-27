@@ -9,6 +9,8 @@ import { normalizeDeals } from './normalize.js';
 import { writeSheetsCsv } from './output/sheetsCsv.js';
 import { buildDiscordPayload, postDiscord, writeDiscordPayload } from './output/discord.js';
 import { writeGoogleSheet } from './integrations/googleSheets.js';
+import { taipeiToday } from './utils/date.js';
+import { readDiscordReceipt, writeDiscordReceipt } from './utils/deliveryState.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -78,8 +80,17 @@ async function main() {
   }
 
   if (process.env.DISCORD_WEBHOOK_URL && !dryRun) {
-    await postDiscord(payload, process.env.DISCORD_WEBHOOK_URL);
-    console.log('✅ Discord digest posted');
+    const deliveryDate = taipeiToday();
+    const stateDir = process.env.DELIVERY_STATE_DIR || '';
+    const forceDelivery = process.env.FORCE_DISCORD_DELIVERY === '1';
+    const previousReceipt = forceDelivery ? null : await readDiscordReceipt(stateDir, deliveryDate);
+    if (previousReceipt) {
+      console.log(`⏭️ Discord digest already delivered for ${deliveryDate}; skipped duplicate post`);
+    } else {
+      const receipt = await postDiscord(payload, process.env.DISCORD_WEBHOOK_URL);
+      await writeDiscordReceipt(stateDir, deliveryDate, receipt);
+      console.log(`✅ Discord digest posted message_id=${receipt.id || 'unavailable'}`);
+    }
   } else if (process.env.DISCORD_WEBHOOK_URL && dryRun) {
     console.log('DRY_RUN=1, skipped Discord post');
   }

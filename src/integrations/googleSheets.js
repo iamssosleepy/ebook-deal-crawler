@@ -12,13 +12,24 @@ function cellText(value) {
   return value === null || value === undefined ? '' : String(value);
 }
 
-function assertRowsMatch(expected, actual) {
+function dateSerialToIso(value) {
+  const epoch = Date.UTC(1899, 11, 30);
+  return new Date(epoch + Number(value) * 86400000).toISOString().slice(0, 10);
+}
+
+function comparableCell(value, column) {
+  const isDateColumn = column === 10 || column === 11;
+  if (isDateColumn && typeof value === 'number') return dateSerialToIso(value);
+  return cellText(value);
+}
+
+export function assertRowsMatch(expected, actual) {
   if (actual.length !== expected.length) {
     throw new Error(`Google Sheets verification failed: expected ${expected.length} rows, got ${actual.length}.`);
   }
   for (let row = 0; row < expected.length; row += 1) {
     for (let column = 0; column < expected[row].length; column += 1) {
-      if (cellText(actual[row]?.[column]) !== cellText(expected[row][column])) {
+      if (comparableCell(actual[row]?.[column], column) !== comparableCell(expected[row][column], column)) {
         throw new Error(`Google Sheets verification failed at row ${row + 1}, column ${column + 1}.`);
       }
     }

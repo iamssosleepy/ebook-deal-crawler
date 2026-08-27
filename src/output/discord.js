@@ -24,6 +24,16 @@ function statLine(counts) {
     .join('　');
 }
 
+function sourceFooter(rows) {
+  const present = Object.keys(countBy(rows, 'platform'));
+  const preferredOrder = ['讀墨', 'Kobo', '博客來', 'Pubu'];
+  const ordered = [
+    ...preferredOrder.filter(name => present.includes(name)),
+    ...present.filter(name => !preferredOrder.includes(name)).sort()
+  ];
+  return `資料來源：${ordered.join(' / ') || '無'}｜自動爬蟲整理`;
+}
+
 function trimTitle(title, max = 36) {
   return title.length > max ? `${title.slice(0, max - 1)}…` : title;
 }
@@ -86,7 +96,7 @@ export function buildDiscordPayload(rows) {
           field('折扣率較高', bestDiscount)
         ],
         footer: {
-          text: '資料來源：Readmoo / Kobo / 博客來 / Pubu｜自動爬蟲整理'
+          text: sourceFooter(rows)
         },
         timestamp: new Date().toISOString()
       }

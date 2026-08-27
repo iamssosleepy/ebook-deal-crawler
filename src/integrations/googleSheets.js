@@ -2,6 +2,28 @@ import { google } from 'googleapis';
 import { rowsForGoogleSheets } from '../output/sheetsCsv.js';
 
 const DEFAULT_SHEET_NAME = '電子書特價日報';
+const LAST_COLUMN = 'U';
+
+function quoteSheetName(sheetName) {
+  return `'${sheetName.replaceAll("'", "''")}'`;
+}
+
+function cellText(value) {
+  return value === null || value === undefined ? '' : String(value);
+}
+
+function assertRowsMatch(expected, actual) {
+  if (actual.length !== expected.length) {
+    throw new Error(`Google Sheets verification failed: expected ${expected.length} rows, got ${actual.length}.`);
+  }
+  for (let row = 0; row < expected.length; row += 1) {
+    for (let column = 0; column < expected[row].length; column += 1) {
+      if (cellText(actual[row]?.[column]) !== cellText(expected[row][column])) {
+        throw new Error(`Google Sheets verification failed at row ${row + 1}, column ${column + 1}.`);
+      }
+    }
+  }
+}
 
 async function getSheetsClient() {
   const credentialsText = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -48,18 +70,35 @@ export async function writeGoogleSheet(rows, spreadsheetId, sheetName = process.
   const sheets = await getSheetsClient();
   const values = rowsForGoogleSheets(rows);
   const sheetId = await ensureSheet(sheets, spreadsheetId, sheetName);
+  const quotedSheet = quoteSheetName(sheetName);
 
-  await sheets.spreadsheets.values.clear({
+  const previous = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `${sheetName}!A:Z`
+    range: `${quotedSheet}!A:${LAST_COLUMN}`,
+    valueRenderOption: 'UNFORMATTED_VALUE'
   });
+  const previousRowCount = previous.data.values?.length || 0;
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetName}!A1`,
+    range: `${quotedSheet}!A1`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values }
   });
+
+  if (previousRowCount > values.length) {
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range: `${quotedSheet}!A${values.length + 1}:${LAST_COLUMN}${previousRowCount}`
+    });
+  }
+
+  const verified = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${quotedSheet}!A1:${LAST_COLUMN}${values.length}`,
+    valueRenderOption: 'UNFORMATTED_VALUE'
+  });
+  assertRowsMatch(values, verified.data.values || []);
 
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,

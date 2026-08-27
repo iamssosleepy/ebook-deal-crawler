@@ -93,6 +93,11 @@ sources = pubu,booksTw
 
 這只會產生 artifacts，不會寫 Sheets，也不會發 Discord。
 
+目前建議先使用獨立的 `Ebook crawler safe dry run` workflow。它固定不注入
+Google／Discord secrets，因此即使程式判斷錯誤也沒有對外寫入能力。博客來
+自動來源仍受 HTTP 403 阻擋時，預設 sources 使用 `readmoo,kobo,pubu`，並在
+產出中只標示實際成功的來源。
+
 確認沒問題後再跑：
 
 ```text

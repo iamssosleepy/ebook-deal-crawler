@@ -96,7 +96,7 @@ export async function fetchBooksTwDeals() {
   return [...byUrl.values()].filter(row => [66, 99].includes(Number(row.salePrice)));
 }
 
-function parseBooksMarkdown(markdown) {
+export function parseBooksMarkdown(markdown) {
   const rows = [];
   const calendarLinks = [...markdown.matchAll(/\[加入行事曆]\((https:\/\/www\.google\.com\/calendar\/render\?[^)]+)\)/g)];
   for (const match of calendarLinks) {

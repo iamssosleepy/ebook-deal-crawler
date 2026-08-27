@@ -41,6 +41,10 @@ SOURCES=pubu,booksTw npm run dry
 DRY_RUN=0 npm run crawl
 ```
 
+在 Laptop 或 GitHub 測試時優先使用 `DRY_RUN=1`。GitHub 的
+`Ebook crawler safe dry run` workflow 不載入任何 secrets，也不會寫入 Sheet
+或發送 Discord；正式 `Daily ebook deals` workflow 在完成驗收前維持停用。
+
 輸出會在 `output/`：
 
 - `ebook_deals_YYYY-MM-DD.csv`：可直接匯入 Google Sheets。
@@ -82,6 +86,9 @@ DRY_RUN=0
 ```
 
 > 生產 Sheet：<https://docs.google.com/spreadsheets/d/1rBnTmFgAjQYHvEjUxSZqG3yswLXD-keueIaGNRK6mJU/edit>，工作表 `每日特價`。
+
+寫入時會先保存新資料、回讀驗證，再清除舊資料多出的尾端列；禁止採用
+「先清空整張工作表再寫入」的流程。若 Sheet 驗證失敗，Discord 不會發送。
 > Service account JSON **不可提交進 repo**，請放在本機 `.env` 或 GitHub Secrets。
 
 ## Discord Webhook 設定
@@ -132,3 +139,6 @@ npm run crawl
 - Kobo 在某些雲端機房會回傳 403 或 challenge page。程式已做 Playwright fallback，若仍解析到 0 筆，建議改用本機/VPS 固定 IP 執行，或把 Kobo 來源獨立成 `SOURCES=kobo npm run dry` 方便 debug。
 - Readmoo 是 JS 動態渲染，必須安裝 Playwright Chromium，不能只靠 `fetch()`。
 - 博客來活動頁有很多暢銷榜/新書推薦，本專案先只保留 66/99 的每日 e 書候選，避免推播混入一般推薦書。
+- 2026-08-27 Laptop 與 Jina 文字代理均收到博客來 HTTP 403。正式流程仍採
+  fail-closed；安全 dry-run 預設只選 `readmoo,kobo,pubu`，不得把三來源結果
+  標示為四來源完整資料。

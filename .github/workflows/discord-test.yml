@@ -37,6 +37,7 @@ jobs:
           MIN_DEALS: '10'
           DISCORD_TEST_MODE: '1'
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          KOBO_LOCAL_JSONL: /home/wch/Projects/personal/kobo-weekly-book-list/data/books.jsonl
       - name: Upload generated reports
         if: always()
         uses: actions/upload-artifact@v7

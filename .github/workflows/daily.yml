@@ -67,6 +67,7 @@ jobs:
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           DELIVERY_STATE_DIR: /home/wch/.local/state/ebook-deal-crawler
+          KOBO_LOCAL_JSONL: /home/wch/Projects/personal/kobo-weekly-book-list/data/books.jsonl
       - name: Upload generated reports
         if: always()
         uses: actions/upload-artifact@v7

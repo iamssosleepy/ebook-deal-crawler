@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import fs from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { SOURCES } from '../../config/sources.js';
 import { fetchHtml } from '../utils/http.js';
@@ -7,6 +8,7 @@ import { isoDateFromTaiwanMonthDay } from '../utils/date.js';
 import { fetchOfficialMarkdown } from '../utils/proxy.js';
 
 const CONFIG = SOURCES.kobo;
+const DEFAULT_LOCAL_JSONL = '/home/wch/Projects/personal/kobo-weekly-book-list/data/books.jsonl';
 
 async function fetchKoboHtml(url) {
   try {
@@ -52,6 +54,37 @@ function extractTitleFromHeading(text) {
   return match ? cleanText(match[1]) : '';
 }
 
+export async function loadLocalKoboDeals(year, week, filePath = process.env.KOBO_LOCAL_JSONL || DEFAULT_LOCAL_JSONL) {
+  try {
+    const records = (await fs.readFile(filePath, 'utf8'))
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map(line => JSON.parse(line))
+      .filter(row => Number(row.year) === year && Number(row.week) === week)
+      .filter(row => row.date && row.title && (row.tw_url || row.hk_url));
+
+    return records.map(row => ({
+      platform: CONFIG.platform,
+      campaignType: '每日99書單',
+      title: cleanText(row.title).replace(/^《|》$/g, ''),
+      author: row.author || '',
+      publisher: row.publisher || '',
+      originalPrice: '',
+      salePrice: 99,
+      startDate: row.date,
+      endDate: row.date,
+      url: stripTracking(row.tw_url || row.hk_url),
+      coverUrl: '',
+      sourcePage: row.source_url || `https://www.kobo.com/zh/blog/weekly-dd99-${year}-w${week}/`,
+      fetchMethod: 'local-validated-jsonl',
+      confidence: 'high'
+    }));
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
 async function findLatestWeeklyUrl() {
   const html = await fetchKoboHtml(CONFIG.tagPage);
   const $ = cheerio.load(html);
@@ -78,6 +111,11 @@ export async function fetchKoboDeals() {
     if (deals.length) return deals;
   } catch (error) {
     console.warn(`⚠️ kobo text proxy failed: ${error.message}`);
+  }
+  const localDeals = await loadLocalKoboDeals(year, week);
+  if (localDeals.length) {
+    console.log(`ℹ️ kobo: using ${localDeals.length} rows from validated local JSONL`);
+    return localDeals;
   }
   articleUrl = await findLatestWeeklyUrl();
   const html = await fetchKoboHtml(articleUrl);

@@ -42,6 +42,7 @@ jobs:
           FAIL_ON_SOURCE_ERROR: '1'
           MIN_DEALS: '10'
           DISCORD_TEST_MODE: '1'
+          KOBO_LOCAL_JSONL: /home/wch/Projects/personal/kobo-weekly-book-list/data/books.jsonl
       - name: Upload generated reports
         if: always()
         uses: actions/upload-artifact@v7

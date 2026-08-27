@@ -48,9 +48,9 @@ jobs:
           TZ: Asia/Taipei
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || '0' }}
           REQUIRE_TARGETS: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == '1' && '0' || '1' }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GOOGLE_SHEET_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == '1' && '' || secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == '1' && '' || secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          DISCORD_WEBHOOK_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == '1' && '' || secrets.DISCORD_WEBHOOK_URL }}
       - run: npm run crawl
         env:
           TZ: Asia/Taipei
@@ -61,11 +61,11 @@ jobs:
           REQUIRE_ALL_SOURCES: '1'
           MIN_DEALS: '10'
           GOOGLE_SHEET_TAB: 每日特價
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          DISCORD_THREAD_ID: ${{ secrets.DISCORD_THREAD_ID }}
-          DISCORD_THREAD_NAME: ${{ secrets.DISCORD_THREAD_NAME }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          DISCORD_WEBHOOK_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == '1' && '' || secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_THREAD_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == '1' && '' || secrets.DISCORD_THREAD_ID }}
+          DISCORD_THREAD_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == '1' && '' || secrets.DISCORD_THREAD_NAME }}
+          GOOGLE_SHEET_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == '1' && '' || secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == '1' && '' || secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           DELIVERY_STATE_DIR: /home/wch/.local/state/ebook-deal-crawler
           KOBO_LOCAL_JSONL: /home/wch/Projects/personal/kobo-weekly-book-list/data/books.jsonl
       - name: Upload generated reports

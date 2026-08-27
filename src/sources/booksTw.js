@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { readFile, stat } from 'node:fs/promises';
 import { SOURCES } from '../../config/sources.js';
 import { fetchHtml } from '../utils/http.js';
 import { absoluteUrl, cleanText, numberFromText, stripTracking } from '../utils/text.js';
@@ -6,6 +7,24 @@ import { isoDateFromTaiwanMonthDay, taipeiToday } from '../utils/date.js';
 import { fetchOfficialMarkdown } from '../utils/proxy.js';
 
 const CONFIG = SOURCES.booksTw;
+
+async function readFreshLocalHtml() {
+  const cachePath = process.env.BOOKS_TW_LOCAL_HTML;
+  if (!cachePath) throw new Error('BOOKS_TW_LOCAL_HTML is not configured');
+
+  const file = await stat(cachePath);
+  const maxAgeMinutes = Number(process.env.BOOKS_TW_LOCAL_MAX_AGE_MINUTES || 360);
+  const ageMinutes = (Date.now() - file.mtimeMs) / 60000;
+  if (!Number.isFinite(maxAgeMinutes) || maxAgeMinutes <= 0 || ageMinutes > maxAgeMinutes) {
+    throw new Error(`Books Windows cache is stale (${Math.round(ageMinutes)} minutes old)`);
+  }
+
+  const html = await readFile(cachePath, 'utf8');
+  if (html.length < 20000 || !/books\.com\.tw\/products\/E/.test(html) || !/google\.com\/calendar\/render/.test(html)) {
+    throw new Error('Books Windows cache failed content validation');
+  }
+  return html;
+}
 
 function parseCalendarLinks($) {
   const rows = [];
@@ -35,12 +54,32 @@ function parseCalendarLinks($) {
 
 export async function fetchBooksTwDeals() {
   let html;
+  let fetchMethod = CONFIG.method;
   try {
     html = await fetchHtml(CONFIG.sourcePage);
-  } catch {
-    const markdown = await fetchOfficialMarkdown(CONFIG.sourcePage);
-    return parseBooksMarkdown(markdown);
+  } catch (directError) {
+    try {
+      const markdown = await fetchOfficialMarkdown(CONFIG.sourcePage);
+      const rows = parseBooksMarkdown(markdown);
+      if (rows.length) return rows;
+      throw new Error('official markdown proxy returned no Books deals');
+    } catch (proxyError) {
+      try {
+        html = await readFreshLocalHtml();
+        fetchMethod = 'windows-html-cache';
+      } catch (cacheError) {
+        throw new AggregateError(
+          [directError, proxyError, cacheError],
+          'Books direct, markdown proxy, and Windows cache all failed'
+        );
+      }
+    }
   }
+
+  return parseBooksHtml(html, fetchMethod);
+}
+
+export function parseBooksHtml(html, fetchMethod = CONFIG.method) {
   const $ = cheerio.load(html);
   const today = taipeiToday();
   const byUrl = new Map();
@@ -48,14 +87,14 @@ export async function fetchBooksTwDeals() {
   for (const row of parseCalendarLinks($)) {
     byUrl.set(stripTracking(row.productUrl), {
       platform: CONFIG.platform,
-      campaignType: '每日e書99',
+      campaignType: Number(row.price) === 66 ? '週末e書66' : '每日e書99',
       title: row.title,
       salePrice: row.price || '',
       startDate: row.startDate || today,
       endDate: row.endDate || row.startDate || today,
       url: stripTracking(row.productUrl),
       sourcePage: CONFIG.sourcePage,
-      fetchMethod: CONFIG.method,
+      fetchMethod,
       confidence: 'high'
     });
   }
@@ -75,20 +114,23 @@ export async function fetchBooksTwDeals() {
 
     if (!href || !title || !/E\d+/.test(href)) return;
     const existing = byUrl.get(href) || {};
+    const plausibleOriginalPrice = Number(originalPrice) > Number(existing.salePrice || salePrice)
+      ? originalPrice
+      : '';
     const existingTitleLooksLikeCalendar = /加入行事曆|\d{1,2}\/\d{1,2}/.test(existing.title || '');
     byUrl.set(href, {
       platform: CONFIG.platform,
       campaignType: existing.campaignType || '活動頁電子書',
       title: !existing.title || existingTitleLooksLikeCalendar ? title : existing.title,
       author: cleanText(text.match(/作者[:：]?\s*([^$優惠價]+)/)?.[1] || ''),
-      originalPrice: existing.originalPrice || originalPrice,
+      originalPrice: existing.originalPrice || plausibleOriginalPrice,
       salePrice: existing.salePrice || salePrice,
       startDate: existing.startDate || startDate,
       endDate: existing.endDate || startDate,
       url: href,
       coverUrl,
       sourcePage: CONFIG.sourcePage,
-      fetchMethod: CONFIG.method,
+      fetchMethod,
       confidence: existing.confidence || 'medium'
     });
   });

@@ -1,0 +1,52 @@
+name: Ebook crawler Google Sheet acceptance test
+
+on:
+  workflow_dispatch:
+    inputs:
+      sheet_tab:
+        description: Dedicated non-production worksheet used for acceptance tests
+        required: true
+        default: 驗收_電子書特價
+      sources:
+        description: Sources verified on the Laptop network
+        required: true
+        default: readmoo,kobo,pubu
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ebook-crawler-sheet-acceptance
+  cancel-in-progress: false
+
+jobs:
+  test-sheet:
+    runs-on: [self-hosted, linux, x64, ebook-deals, laptop]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Crawl and write only the acceptance-test worksheet
+        run: npm run crawl
+        env:
+          TZ: Asia/Taipei
+          DRY_RUN: '0'
+          SOURCES: ${{ inputs.sources }}
+          REQUIRE_ALL_SOURCES: '1'
+          FAIL_ON_SOURCE_ERROR: '1'
+          MIN_DEALS: '10'
+          DISCORD_TEST_MODE: '1'
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_TAB: ${{ inputs.sheet_tab }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      - name: Upload generated reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ebook-deal-sheet-acceptance-${{ github.run_id }}
+          path: output/
+          if-no-files-found: warn

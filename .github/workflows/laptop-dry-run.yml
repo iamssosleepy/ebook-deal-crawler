@@ -1,0 +1,52 @@
+name: Ebook crawler Laptop dry run
+
+on:
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: Comma-separated sources available from the Laptop network
+        required: true
+        default: readmoo,kobo,pubu
+      require_all_sources:
+        description: Fail if any selected source is unavailable
+        required: true
+        default: '1'
+        type: choice
+        options: ['1', '0']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ebook-crawler-laptop-dry-run
+  cancel-in-progress: true
+
+jobs:
+  crawl:
+    runs-on: [self-hosted, linux, x64, ebook-deals, laptop]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Crawl without credentials or external writes
+        run: npm run crawl
+        env:
+          TZ: Asia/Taipei
+          DRY_RUN: '1'
+          SOURCES: ${{ inputs.sources }}
+          REQUIRE_ALL_SOURCES: ${{ inputs.require_all_sources }}
+          FAIL_ON_SOURCE_ERROR: '1'
+          MIN_DEALS: '10'
+          DISCORD_TEST_MODE: '1'
+      - name: Upload generated reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ebook-deal-laptop-dry-run-${{ github.run_id }}
+          path: output/
+          if-no-files-found: warn

@@ -24,8 +24,8 @@ on:
           - '1'
           - '0'
   schedule:
-    # 00:10 Asia/Taipei
-    - cron: '10 16 * * *'
+    # 12:30 Asia/Taipei
+    - cron: '30 4 * * *'
 
 concurrency:
   group: ebook-deals-production

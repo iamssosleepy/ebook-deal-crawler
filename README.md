@@ -140,6 +140,6 @@ npm run crawl
 - Readmoo 是 JS 動態渲染，必須安裝 Playwright Chromium，不能只靠 `fetch()`。
 - 博客來活動頁有很多暢銷榜/新書推薦，本專案先只保留 66/99 的每日 e 書候選，避免推播混入一般推薦書。
 - 2026-08-27 WSL 與 Jina 文字代理均收到博客來 HTTP 403，但 Windows 原生
-  網路可正常讀取官方活動頁。Laptop 正式流程會在 23:55 由 Windows 更新經過
+  網路可正常讀取官方活動頁。Laptop 正式流程會在 12:15 由 Windows 更新經過
   內容驗證的 HTML 快取，WSL 直連與 Jina 都失敗時才讀取六小時內的快取；解析
   仍使用官方頁面的 Google Calendar 連結，不需要 AI 或瀏覽器。

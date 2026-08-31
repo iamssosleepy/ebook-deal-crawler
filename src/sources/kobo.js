@@ -61,7 +61,7 @@ export async function loadLocalKoboDeals(year, week, filePath = process.env.KOBO
       .filter(Boolean)
       .map(line => JSON.parse(line))
       .filter(row => Number(row.year) === year && Number(row.week) === week)
-      .filter(row => row.date && row.title && (row.tw_url || row.hk_url));
+      .filter(row => row.date && row.title && row.source_url && (row.tw_url || row.hk_url));
 
     return records.map(row => ({
       platform: CONFIG.platform,
@@ -75,7 +75,7 @@ export async function loadLocalKoboDeals(year, week, filePath = process.env.KOBO
       endDate: row.date,
       url: stripTracking(row.tw_url || row.hk_url),
       coverUrl: '',
-      sourcePage: row.source_url || `https://www.kobo.com/zh/blog/weekly-dd99-${year}-w${week}/`,
+      sourcePage: row.source_url,
       fetchMethod: 'local-validated-jsonl',
       confidence: 'high'
     }));

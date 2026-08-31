@@ -1,6 +1,8 @@
-# 電子書特價日報爬蟲
+# 每日四平台電子書特價情報
 
-這是一套自己抓原始來源的電子書限時折扣爬蟲，不依賴 BrokeButRead 的整理結果。資料來源是四個官方頁面：Readmoo 每日優惠、Kobo 99 書單、博客來每日 e 書 99、Pubu 限時 99 選書。
+這是一套自己抓原始來源的電子書限時折扣情報流程，不依賴 BrokeButRead 的整理結果。資料來源是四個官方頁面：Readmoo 每日優惠、Kobo 99 書單、博客來每日 e 書 99、Pubu 限時 99 選書。
+
+目前整理原價、現價、折扣與期限；下一階段會建立 append-only 價格歷史與可驗證的史低判定。在歷史樣本足夠前不得宣稱「史上最低價」。設計與 Kobo 整併節點見 [`docs/PRICE-HISTORY-AND-KOBO-CONSOLIDATION.md`](./docs/PRICE-HISTORY-AND-KOBO-CONSOLIDATION.md)。
 
 ## 架構
 
@@ -41,9 +43,7 @@ SOURCES=pubu,booksTw npm run dry
 DRY_RUN=0 npm run crawl
 ```
 
-在 Laptop 或 GitHub 測試時優先使用 `DRY_RUN=1`。GitHub 的
-`Ebook crawler safe dry run` workflow 不載入任何 secrets，也不會寫入 Sheet
-或發送 Discord；正式 `Daily ebook deals` workflow 在完成驗收前維持停用。
+在 Laptop 或 GitHub 測試時優先使用 `DRY_RUN=1`，不載入正式輸出目標，也不會寫入 Sheet 或發送 Discord。正式 `Daily ebook deals` workflow 已啟用，由 XPS WSL self-hosted runner 執行。
 
 輸出會在 `output/`：
 
@@ -116,7 +116,7 @@ npm run crawl
 
 ## GitHub Actions 排程
 
-已附 `.github/workflows/daily.yml`，預設每天台灣時間 00:10 左右執行。GitHub Actions 使用 UTC，所以 cron 是 `10 16 * * *`。
+已附 `.github/workflows/daily.yml`，預設每天台灣時間 12:30 左右執行。GitHub Actions 使用 UTC，所以 cron 是 `30 4 * * *`。Windows `AI Workbench Books Cache` 會在 12:15 先建立 Books.com.tw 驗證快取。
 
 正式排程需要這些 GitHub Secrets / env：
 
@@ -136,7 +136,7 @@ npm run crawl
 
 ## 已知注意事項
 
-- Kobo 在某些雲端機房會回傳 403 或 challenge page。程式已做 Playwright fallback，若仍解析到 0 筆，建議改用本機/VPS 固定 IP 執行，或把 Kobo 來源獨立成 `SOURCES=kobo npm run dry` 方便 debug。
+- Kobo 在某些網路路徑會回傳 403 或 challenge page。官方來源失效時，只接受目標年度／週次、日期、書名、購買連結與官方 `source_url` 都完整的本機 JSONL 參考資料。若官方路徑與有效參考資料都無法產生 Kobo 項目，`REQUIRE_ALL_SOURCES=1` 會停止當次正式流程，禁止更新 Sheet 或發送 Discord。
 - Readmoo 是 JS 動態渲染，必須安裝 Playwright Chromium，不能只靠 `fetch()`。
 - 博客來活動頁有很多暢銷榜/新書推薦，本專案先只保留 66/99 的每日 e 書候選，避免推播混入一般推薦書。
 - 2026-08-27 WSL 與 Jina 文字代理均收到博客來 HTTP 403，但 Windows 原生

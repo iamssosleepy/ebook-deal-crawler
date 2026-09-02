@@ -1,88 +1,82 @@
-import { chromium } from 'playwright';
 import { SOURCES } from '../../config/sources.js';
-import { isoDateFromTaiwanMonthDay, taipeiToday } from '../utils/date.js';
-import { cleanText, numberFromText, stripTracking } from '../utils/text.js';
+import { numberFromText, stripTracking } from '../utils/text.js';
 
 const CONFIG = SOURCES.readmoo;
 
-function parseDateFromText(text) {
-  return isoDateFromTaiwanMonthDay(text);
+function extractSchedules(html) {
+  const markerIndex = html.indexOf('schedules:');
+  if (markerIndex < 0) return [];
+
+  const start = html.indexOf('[', markerIndex);
+  if (start < 0) return [];
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < html.length; index += 1) {
+    const char = html[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+    } else if (char === '[') {
+      depth += 1;
+    } else if (char === ']') {
+      depth -= 1;
+      if (depth === 0) {
+        return JSON.parse(html.slice(start, index + 1));
+      }
+    }
+  }
+
+  return [];
 }
 
-function parsePriceFromText(text) {
-  const saleMatch = text.match(/(?:特惠售價|優惠價|NT\$)\s*\$?\s*([0-9,]+)/i);
-  if (saleMatch) return numberFromText(saleMatch[1]);
-  return '';
+export function parseReadmooHtml(html) {
+  return extractSchedules(String(html || ''))
+    .filter((row) => row?.date && row?.book?.title && row?.book?.store_url)
+    .map((row) => ({
+      platform: CONFIG.platform,
+      campaignType: '每日特惠',
+      title: row.book.title,
+      originalPrice: numberFromText(row.book.ref_price || row.book.list_price),
+      salePrice: numberFromText(row.promo_price),
+      startDate: row.date,
+      endDate: row.date,
+      url: stripTracking(row.book.store_url),
+      coverUrl: row.book.cover_url || '',
+      sourcePage: CONFIG.sourcePage,
+      fetchMethod: CONFIG.method,
+      confidence: row.promo_price ? 'high' : 'medium'
+    }));
 }
 
 export async function fetchReadmooDeals() {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({
-    locale: 'zh-TW',
-    timezoneId: 'Asia/Taipei'
+  const response = await fetch(CONFIG.sourcePage, {
+    headers: {
+      accept: 'text/html,application/xhtml+xml',
+      'accept-language': 'zh-TW,zh;q=0.9,en;q=0.7',
+      'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36'
+    },
+    signal: AbortSignal.timeout(60000)
   });
-
-  try {
-    await page.goto(CONFIG.sourcePage, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(3500);
-    await page.waitForFunction(() => {
-      return [...document.querySelectorAll('a[href*="/book/"]')]
-        .some(anchor => /\/book\/\d+/.test(anchor.href));
-    }, { timeout: 30000 });
-
-    const raw = await page.$$eval('a[href*="/book/"]', anchors => {
-      const rows = [];
-      const seen = new Set();
-      for (const anchor of anchors) {
-        const href = anchor.href;
-        if (!href || !/\/book\/\d+/.test(href) || seen.has(href)) continue;
-        seen.add(href);
-        const card = anchor.closest('li, article, .book, .item, .card, section, div') || anchor.parentElement;
-        const text = (card?.innerText || anchor.innerText || '').replace(/\s+/g, ' ').trim();
-        const img = card?.querySelector('img') || anchor.querySelector('img');
-        rows.push({
-          href,
-          text,
-          anchorText: (anchor.innerText || '').replace(/\s+/g, ' ').trim(),
-          coverUrl: img?.src || img?.getAttribute('data-src') || ''
-        });
-      }
-      return rows;
-    });
-
-    const today = taipeiToday();
-    const deals = [];
-    for (const item of raw) {
-      const text = cleanText(item.text);
-      if (!text || /推薦|電子書售價/.test(text) && !/特惠|優惠|一日|週限定|NT\$\s*99|NT\$\s*149|NT\$\s*199/.test(text)) {
-        continue;
-      }
-
-      const title = cleanText(item.anchorText || text.split(' NT$')[0]).replace(/^加入行事曆|^前往購買/, '');
-      if (!title || title.length < 2) continue;
-
-      const date = parseDateFromText(text) || today;
-      const salePrice = parsePriceFromText(text) || numberFromText((text.match(/NT\$\s*[0-9,]+/) || [''])[0]);
-      const originalPrice = numberFromText((text.match(/(?:定價|原價|電子書定價)\s*NT\$?\s*([0-9,]+)/) || [])[1]);
-
-      deals.push({
-        platform: CONFIG.platform,
-        campaignType: date === today ? '今日特惠' : '本週限定預告',
-        title,
-        originalPrice,
-        salePrice,
-        startDate: date,
-        endDate: date,
-        url: stripTracking(item.href),
-        coverUrl: item.coverUrl,
-        sourcePage: CONFIG.sourcePage,
-        fetchMethod: CONFIG.method,
-        confidence: salePrice ? 'medium' : 'low'
-      });
-    }
-
-    return deals;
-  } finally {
-    await browser.close();
+  if (!response.ok) {
+    throw new Error(`Readmoo HTTP ${response.status}`);
   }
+
+  const deals = parseReadmooHtml(await response.text());
+  if (!deals.length) {
+    throw new Error('Readmoo schedules payload was missing or empty');
+  }
+  return deals;
 }

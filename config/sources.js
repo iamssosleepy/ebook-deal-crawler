@@ -2,7 +2,7 @@ export const SOURCES = {
   readmoo: {
     platform: '讀墨',
     sourcePage: 'https://readmoo.com/campaign/specialoffer/index',
-    method: 'playwright',
+    method: 'http+embedded-json',
     accentColor: 0x1f8b4c
   },
   kobo: {

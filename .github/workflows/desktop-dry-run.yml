@@ -1,0 +1,60 @@
+name: Ebook crawler Desktop dry run
+
+on:
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: Comma-separated sources available from the Luzhou Desktop network
+        required: true
+        default: readmoo,kobo,booksTw,pubu
+      require_all_sources:
+        description: Fail if any selected source is unavailable
+        required: true
+        default: '1'
+        type: choice
+        options: ['1', '0']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ebook-crawler-desktop-dry-run
+  cancel-in-progress: true
+
+jobs:
+  crawl:
+    runs-on: [self-hosted, linux, x64, ebook-deals, desktop]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Validate credential-free deployment environment
+        run: npm run validate:deploy
+        env:
+          TZ: Asia/Taipei
+          DRY_RUN: '1'
+          REQUIRE_TARGETS: '0'
+      - name: Crawl without credentials or external writes
+        run: npm run crawl
+        env:
+          TZ: Asia/Taipei
+          DRY_RUN: '1'
+          SOURCES: ${{ inputs.sources }}
+          REQUIRE_ALL_SOURCES: ${{ inputs.require_all_sources }}
+          FAIL_ON_SOURCE_ERROR: '1'
+          MIN_DEALS: '10'
+          DISCORD_TEST_MODE: '1'
+          KOBO_LOCAL_JSONL: /home/wch/Projects/personal/kobo-weekly-book-list/data/books.jsonl
+          BOOKS_TW_LOCAL_HTML: /home/wch/.cache/ai-workbench/books-tw.html
+          BOOKS_TW_LOCAL_MAX_AGE_MINUTES: '360'
+      - name: Upload generated reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ebook-deal-desktop-dry-run-${{ github.run_id }}
+          path: output/
+          if-no-files-found: warn

@@ -41,7 +41,6 @@ jobs:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
-      - run: npx playwright install chromium
       - name: Validate deployment environment
         run: npm run validate:deploy
         env:

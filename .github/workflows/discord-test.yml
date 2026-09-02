@@ -25,7 +25,6 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci
-      - run: npx playwright install chromium
       - name: Send one visibly marked test digest without writing Google Sheets
         run: npm run crawl
         env:

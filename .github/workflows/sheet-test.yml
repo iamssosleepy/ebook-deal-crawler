@@ -29,7 +29,6 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci
-      - run: npx playwright install chromium
       - name: Crawl and write only the acceptance-test worksheet
         run: npm run crawl
         env:

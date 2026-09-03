@@ -1,0 +1,25 @@
+name: Desktop install one-click SSH repair
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: [self-hosted, linux, x64, ai-workbench, luzhou-worker, desktop]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Place guarded repair launcher on Eric desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          target=/mnt/c/Users/Edwar/Desktop/AIWorkbench-Admin-Fix
+          mkdir -p "$target"
+          install -m 0644 scripts/desktop-repair-network-profile.ps1 "$target/desktop-repair-network-profile.ps1"
+          install -m 0644 scripts/FIX-Luzhou-Desktop-SSH.cmd "$target/FIX-Luzhou-Desktop-SSH.cmd"
+          test -s "$target/desktop-repair-network-profile.ps1"
+          test -s "$target/FIX-Luzhou-Desktop-SSH.cmd"
+          echo DESKTOP_ADMIN_FIX_LAUNCHER_READY

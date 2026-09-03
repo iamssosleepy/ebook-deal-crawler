@@ -33,7 +33,9 @@ concurrency:
 
 jobs:
   crawl:
-    runs-on: [self-hosted, linux, x64, ebook-deals]
+    # Production remains on the XPS until the Gate-0 owner cutover is approved.
+    # The Luzhou desktop keeps the `desktop` label and may run only its isolated workflow.
+    runs-on: [self-hosted, linux, x64, ebook-deals, laptop]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

@@ -1,0 +1,26 @@
+name: Desktop repair trusted network profile
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-network-profile-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: [self-hosted, linux, x64, ai-workbench, luzhou-worker, desktop]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Repair trusted office network classification
+        shell: bash
+        run: |
+          set -euo pipefail
+          script_path="$(wslpath -w "$GITHUB_WORKSPACE/scripts/desktop-repair-network-profile.ps1")"
+          /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
+            -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+            -File "$script_path"

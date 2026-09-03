@@ -1,0 +1,53 @@
+name: Desktop worker health (read only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-worker-health
+  cancel-in-progress: true
+
+jobs:
+  health:
+    runs-on: [self-hosted, linux, x64, ai-workbench, luzhou-worker, desktop]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Capture WSL health
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/desktop-health"
+          {
+            echo "WSL_HOST=$(hostname)"
+            echo "WSL_TIME=$(date --iso-8601=seconds)"
+            uname -a
+            uptime
+            df -h / /mnt/c /mnt/f 2>&1 || true
+            systemctl --no-pager --full status 'actions.runner.*' 2>&1 || true
+          } > "$RUNNER_TEMP/desktop-health/wsl.txt"
+      - name: Capture Windows host health
+        shell: bash
+        run: |
+          set -euo pipefail
+          script_path="$(wslpath -w "$GITHUB_WORKSPACE/scripts/desktop-health.ps1")"
+          /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
+            -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+            -File "$script_path" \
+            > "$RUNNER_TEMP/desktop-health/windows.txt" 2>&1
+      - name: Verify report markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'DESKTOP_HEALTH_DONE' "$RUNNER_TEMP/desktop-health/windows.txt"
+          grep -Fq 'WSL_HOST=' "$RUNNER_TEMP/desktop-health/wsl.txt"
+      - name: Upload health report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-worker-health-${{ github.run_id }}
+          path: ${{ runner.temp }}/desktop-health/
+          if-no-files-found: error

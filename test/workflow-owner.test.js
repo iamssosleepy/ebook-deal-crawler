@@ -11,6 +11,11 @@ test('pins the production workflow to the laptop owner', async () => {
     /runs-on:\s*\[self-hosted, linux, x64, ebook-deals, laptop\]/,
     'daily production must not be eligible for the Luzhou desktop before Gate-0 cutover'
   );
+  assert.match(
+    workflow,
+    /timeout-minutes:\s*20/,
+    'daily production must have a finite execution deadline'
+  );
 });
 
 test('keeps the Luzhou desktop workflow isolated', async () => {

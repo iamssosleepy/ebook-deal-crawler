@@ -1,0 +1,26 @@
+name: Desktop safe 24x7 optimization
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-safe-optimization
+  cancel-in-progress: false
+
+jobs:
+  optimize:
+    runs-on: [self-hosted, linux, x64, ai-workbench, luzhou-worker, desktop]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Apply guarded AC power settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          script_path="$(wslpath -w "$GITHUB_WORKSPACE/scripts/desktop-safe-optimize.ps1")"
+          /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
+            -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+            -File "$script_path"

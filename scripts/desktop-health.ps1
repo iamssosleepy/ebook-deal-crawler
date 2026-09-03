@@ -38,6 +38,28 @@ Get-NetTCPConnection -LocalPort 22 -State Listen -ErrorAction SilentlyContinue |
     Select-Object LocalAddress, LocalPort, OwningProcess, State |
     Format-Table -AutoSize
 
+Write-Output 'NETWORK_PROFILES'
+Get-NetConnectionProfile -ErrorAction SilentlyContinue |
+    Select-Object Name, InterfaceAlias, NetworkCategory, IPv4Connectivity, IPv6Connectivity |
+    Format-Table -AutoSize
+
+Write-Output 'IPV4_ADDRESSES'
+Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { $_.IPAddress -notlike '169.254.*' -and $_.IPAddress -ne '127.0.0.1' } |
+    Select-Object InterfaceAlias, IPAddress, PrefixLength |
+    Format-Table -AutoSize
+
+Write-Output 'SSH_FIREWALL_RULES'
+Get-NetFirewallRule -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match 'OpenSSH|sshd' -or $_.DisplayName -match 'OpenSSH|sshd' } |
+    Select-Object Name, DisplayName, Enabled, Profile, Direction, Action |
+    Format-Table -AutoSize
+
+Write-Output 'LOCAL_SSH_TEST'
+Test-NetConnection -ComputerName 127.0.0.1 -Port 22 -InformationLevel Detailed -WarningAction SilentlyContinue |
+    Select-Object ComputerName, RemotePort, TcpTestSucceeded |
+    Format-List
+
 Write-Output 'AIWORKBENCH_TASKS'
 Get-ScheduledTask -ErrorAction SilentlyContinue |
     Where-Object { $_.TaskName -match 'AIWorkbench|SSH|WSL|Runner|Backup' } |

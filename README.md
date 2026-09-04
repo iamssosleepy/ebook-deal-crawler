@@ -118,6 +118,8 @@ npm run crawl
 
 已附 `.github/workflows/daily.yml`，預設每天台灣時間 12:30 左右執行。GitHub Actions 使用 UTC，所以 cron 是 `30 4 * * *`。Windows `AI Workbench Books Cache` 會在 12:15 先建立 Books.com.tw 驗證快取。
 
+2026-09-05、2026-09-06 經 Eric 明確核准為一次性週末 owner 例外：每日正式工作會派到蘆洲桌機 `eric-desktop-wsl`，其他日期自動回到 XPS `eric-laptop-wsl`。工作開始前會核對實際 runner 名稱；不符即 fail-closed。四來源完整性、Google Sheet／Discord 去重與既有 production concurrency 均不放寬。
+
 正式排程需要這些 GitHub Secrets / env：
 
 - `GOOGLE_SHEET_ID` = `1rBnTmFgAjQYHvEjUxSZqG3yswLXD-keueIaGNRK6mJU`

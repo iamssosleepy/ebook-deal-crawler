@@ -32,12 +32,55 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  select-owner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      runner_label: ${{ steps.owner.outputs.runner_label }}
+      taipei_date: ${{ steps.owner.outputs.taipei_date }}
+    steps:
+      - name: Select the explicitly approved weekend owner
+        id: owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          taipei_date="$(TZ=Asia/Taipei date +%F)"
+          case "$taipei_date" in
+            2026-09-05|2026-09-06)
+              runner_label=desktop
+              ;;
+            *)
+              runner_label=laptop
+              ;;
+          esac
+          echo "taipei_date=$taipei_date" >> "$GITHUB_OUTPUT"
+          echo "runner_label=$runner_label" >> "$GITHUB_OUTPUT"
+          echo "TAIPEI_DATE=$taipei_date OWNER=$runner_label"
+
   crawl:
-    # Production remains on the XPS until the Gate-0 owner cutover is approved.
-    # The Luzhou desktop keeps the `desktop` label and may run only its isolated workflow.
-    runs-on: [self-hosted, linux, x64, ebook-deals, laptop]
+    needs: select-owner
+    # Eric explicitly approved a date-bounded exception for 2026-09-05 and
+    # 2026-09-06. Every other date automatically stays on the XPS owner.
+    runs-on: [self-hosted, linux, x64, ebook-deals, "${{ needs.select-owner.outputs.runner_label }}"]
     timeout-minutes: 20
     steps:
+      - name: Verify the selected physical runner
+        shell: bash
+        env:
+          SELECTED_OWNER: ${{ needs.select-owner.outputs.runner_label }}
+          TAIPEI_DATE: ${{ needs.select-owner.outputs.taipei_date }}
+          ACTUAL_RUNNER: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          case "$SELECTED_OWNER:$ACTUAL_RUNNER" in
+            desktop:eric-desktop-wsl|laptop:eric-laptop-wsl)
+              echo "OWNER_GUARD_OK date=$TAIPEI_DATE owner=$SELECTED_OWNER runner=$ACTUAL_RUNNER"
+              ;;
+            *)
+              echo "OWNER_GUARD_REFUSED date=$TAIPEI_DATE owner=$SELECTED_OWNER runner=$ACTUAL_RUNNER" >&2
+              exit 1
+              ;;
+          esac
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:

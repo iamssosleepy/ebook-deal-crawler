@@ -9,6 +9,8 @@ const PLATFORM_COLORS = {
   'Pubu': '🟠'
 };
 
+const PLATFORM_ORDER = ['讀墨', 'Kobo', '博客來', 'Pubu'];
+
 function countBy(rows, key) {
   return rows.reduce((acc, row) => {
     const value = row[key] || '未分類';
@@ -26,10 +28,9 @@ function statLine(counts) {
 
 function sourceFooter(rows) {
   const present = Object.keys(countBy(rows, 'platform'));
-  const preferredOrder = ['讀墨', 'Kobo', '博客來', 'Pubu'];
   const ordered = [
-    ...preferredOrder.filter(name => present.includes(name)),
-    ...present.filter(name => !preferredOrder.includes(name)).sort()
+    ...PLATFORM_ORDER.filter(name => present.includes(name)),
+    ...present.filter(name => !PLATFORM_ORDER.includes(name)).sort()
   ];
   return `資料來源：${ordered.join(' / ') || '無'}｜自動爬蟲整理`;
 }
@@ -41,14 +42,72 @@ function trimTitle(title, max = 36) {
 function dealLine(row) {
   const price = row.sale_price_twd ? `NT$${row.sale_price_twd}` : '價格未標示';
   const discount = row.discount_pct ? `｜${row.discount_pct}% off` : '';
-  return `• **${row.platform}**｜[${trimTitle(row.title)}](${row.canonical_url || row.url})｜${price}${discount}｜到 ${formatTwDate(row.end_date)}`;
+  const urgency = Number(row.days_left) === 0 ? '｜⚠️ 今天到期' : '';
+  return `• **${row.platform}**｜[${trimTitle(row.title)}](${row.canonical_url || row.url})｜${price}${discount}｜到 ${formatTwDate(row.end_date)}${urgency}`;
 }
 
-function field(name, rows, fallback = '目前沒有符合條件的項目。') {
-  const value = rows.length ? rows.map(dealLine).join('\n') : fallback;
+function upcomingDealLine(row) {
+  const price = row.sale_price_twd ? `NT$${row.sale_price_twd}` : '價格未標示';
+  const discount = row.discount_pct ? `｜${row.discount_pct}% off` : '';
+  return `• **${row.platform}**｜[${trimTitle(row.title)}](${row.canonical_url || row.url})｜${formatTwDate(row.start_date)} 開始｜${price}${discount}`;
+}
+
+function field(name, rows, fallback = '目前沒有符合條件的項目。', renderer = dealLine) {
+  const value = rows.length ? rows.map(renderer).join('\n') : fallback;
   return {
     name,
     value: value.length > 1024 ? `${value.slice(0, 1000)}\n…` : value,
+    inline: false
+  };
+}
+
+function platformNames(rows) {
+  const present = [...new Set(rows.map(row => row.platform).filter(Boolean))];
+  return [
+    ...PLATFORM_ORDER.filter(name => present.includes(name)),
+    ...present.filter(name => !PLATFORM_ORDER.includes(name)).sort()
+  ];
+}
+
+function recommendationSort(a, b) {
+  return Number(a.days_left ?? 999999) - Number(b.days_left ?? 999999)
+    || Number(b.discount_pct || 0) - Number(a.discount_pct || 0)
+    || Number(a.sale_price_twd || 999999) - Number(b.sale_price_twd || 999999)
+    || String(a.title).localeCompare(String(b.title), 'zh-Hant');
+}
+
+function upcomingSort(a, b) {
+  return String(a.start_date).localeCompare(String(b.start_date))
+    || Number(b.discount_pct || 0) - Number(a.discount_pct || 0)
+    || Number(a.sale_price_twd || 999999) - Number(b.sale_price_twd || 999999)
+    || String(a.title).localeCompare(String(b.title), 'zh-Hant');
+}
+
+function balancedSelection(rows, sorter, perPlatform = 2, maxTotal = 8) {
+  const selected = [];
+  for (const platform of platformNames(rows)) {
+    const platformRows = rows
+      .filter(row => row.platform === platform)
+      .sort(sorter)
+      .slice(0, perPlatform);
+    selected.push(...platformRows);
+    if (selected.length >= maxTotal) break;
+  }
+  return selected.slice(0, maxTotal);
+}
+
+function platformBrowseField(rows, active) {
+  const activeCounts = countBy(active, 'platform');
+  const lines = platformNames(rows).map(platform => {
+    const source = rows.find(row => row.platform === platform && row.source_page)?.source_page
+      || rows.find(row => row.platform === platform)?.canonical_url
+      || rows.find(row => row.platform === platform)?.url;
+    const label = `${PLATFORM_COLORS[platform] || '▫️'} ${platform}：${activeCounts[platform] || 0} 本有效`;
+    return source ? `• [${label}](${source})` : `• ${label}`;
+  });
+  return {
+    name: '各平台查看更多',
+    value: lines.join('\n') || '目前沒有來源資料。',
     inline: false
   };
 }
@@ -57,19 +116,13 @@ export function buildDiscordPayload(rows) {
   const today = taipeiToday();
   const testMode = process.env.DISCORD_TEST_MODE === '1';
   const active = rows.filter(row => row.status === '進行中');
-  const todayEnding = active.filter(row => Number(row.days_left) === 0).slice(0, 8);
-  const startingToday = rows.filter(row => row.start_date === today).slice(0, 8);
-  const lowPrice = active
-    .slice()
-    .sort((a, b) => Number(a.sale_price_twd || 999999) - Number(b.sale_price_twd || 999999))
-    .slice(0, 8);
-  const bestDiscount = active
-    .filter(row => Number(row.discount_pct) > 0)
-    .sort((a, b) => Number(b.discount_pct) - Number(a.discount_pct))
-    .slice(0, 8);
+  const upcoming = rows.filter(row => row.status === '即將開始');
+  const ended = rows.filter(row => row.status === '已結束');
+  const featured = balancedSelection(active, recommendationSort);
+  const upcomingFeatured = balancedSelection(upcoming, upcomingSort);
 
-  const platformCounts = countBy(rows, 'platform');
-  const categoryCounts = Object.entries(countBy(rows, 'category'))
+  const activePlatformCounts = countBy(active, 'platform');
+  const categoryCounts = Object.entries(countBy(active, 'category'))
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
     .map(([name, count]) => `${name} ${count}`)
@@ -85,15 +138,15 @@ export function buildDiscordPayload(rows) {
         color: 0x00ff87,
         description: [
           testMode ? '**測試推播，不代表正式資料。**' : '',
-          `今日共整理 **${rows.length}** 筆限時電子書優惠，進行中 **${active.length}** 筆。`,
-          statLine(platformCounts),
-          `主要分類：${categoryCounts || '尚未分類'}`
+          `本次抓取 **${rows.length}** 筆；目前有效 **${active.length}**、即將開始 **${upcoming.length}**、已結束 **${ended.length}**。`,
+          `今日有效：${statLine(activePlatformCounts) || '目前沒有有效優惠'}`,
+          `有效優惠分類：${categoryCounts || '尚未分類'}`,
+          '推薦清單限制每平台最多 2 本，避免單一來源洗版。'
         ].filter(Boolean).join('\n'),
         fields: [
-          field('今天開始', startingToday),
-          field('今天到期，先看這些', todayEnding),
-          field('低價優先', lowPrice),
-          field('折扣率較高', bestDiscount)
+          field('今日有效精選', featured),
+          field('即將開始', upcomingFeatured, '目前沒有即將開始的優惠。', upcomingDealLine),
+          platformBrowseField(rows, active)
         ],
         footer: {
           text: sourceFooter(rows)
@@ -106,7 +159,7 @@ export function buildDiscordPayload(rows) {
 
 export async function writeDiscordPayload(rows, outputDir) {
   await fs.mkdir(outputDir, { recursive: true });
-  const filePath = path.join(outputDir, `discord_payload_${new Date().toISOString().slice(0, 10)}.json`);
+  const filePath = path.join(outputDir, `discord_payload_${taipeiToday()}.json`);
   await fs.writeFile(filePath, JSON.stringify(buildDiscordPayload(rows), null, 2), 'utf8');
   return filePath;
 }

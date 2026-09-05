@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { taipeiToday } from '../utils/date.js';
 
 export const SHEETS_HEADERS = [
   ['platform', '平台'],
@@ -33,7 +34,7 @@ function csvEscape(value) {
 
 export async function writeSheetsCsv(rows, outputDir) {
   await fs.mkdir(outputDir, { recursive: true });
-  const filename = `ebook_deals_${new Date().toISOString().slice(0, 10)}.csv`;
+  const filename = `ebook_deals_${taipeiToday()}.csv`;
   const filePath = path.join(outputDir, filename);
   const lines = [
     SHEETS_HEADERS.map(([, label]) => csvEscape(label)).join(','),

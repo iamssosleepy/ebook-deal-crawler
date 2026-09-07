@@ -39,28 +39,21 @@ jobs:
       runner_label: ${{ steps.owner.outputs.runner_label }}
       taipei_date: ${{ steps.owner.outputs.taipei_date }}
     steps:
-      - name: Select the explicitly approved weekend owner
+      - name: Select the permanent Luzhou desktop owner
         id: owner
         shell: bash
         run: |
           set -euo pipefail
           taipei_date="$(TZ=Asia/Taipei date +%F)"
-          case "$taipei_date" in
-            2026-09-05|2026-09-06)
-              runner_label=desktop
-              ;;
-            *)
-              runner_label=laptop
-              ;;
-          esac
+          runner_label=desktop
           echo "taipei_date=$taipei_date" >> "$GITHUB_OUTPUT"
           echo "runner_label=$runner_label" >> "$GITHUB_OUTPUT"
           echo "TAIPEI_DATE=$taipei_date OWNER=$runner_label"
 
   crawl:
     needs: select-owner
-    # Eric explicitly approved a date-bounded exception for 2026-09-05 and
-    # 2026-09-06. Every other date automatically stays on the XPS owner.
+    # Eric approved permanent company execution on 2026-09-07.
+    # Never fall back to the mobile XPS when the company runner is offline.
     runs-on: [self-hosted, linux, x64, ebook-deals, "${{ needs.select-owner.outputs.runner_label }}"]
     timeout-minutes: 20
     steps:
@@ -73,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$SELECTED_OWNER:$ACTUAL_RUNNER" in
-            desktop:eric-desktop-wsl|laptop:eric-laptop-wsl)
+            desktop:eric-desktop-wsl)
               echo "OWNER_GUARD_OK date=$TAIPEI_DATE owner=$SELECTED_OWNER runner=$ACTUAL_RUNNER"
               ;;
             *)

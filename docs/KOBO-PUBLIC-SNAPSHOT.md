@@ -9,8 +9,9 @@ not ebook contents. It is NOT a direct official Kobo verification.
 `data/kobo-helloruru.json` is the single versioned input. No new service, account,
 credential or scheduler. The existing company-only daily producer reads it before
 its old fallback routes; fresh full current-week validation is mandatory. CSV keeps
-HelloRuru as source/medium confidence and Discord explicitly attributes the third
-party. OriginalPrice0 means unknown, not a free original price. Old local Kobo
+HelloRuru as source/medium confidence. At Eric's subsequent request, Discord no
+longer displays the HelloRuru attribution wording; internal provenance and the
+existing source link remain intact. OriginalPrice0 means unknown, not a free original price. Old local Kobo
 history is not overwritten. No paid endpoint or refresh-trigger endpoint was used.
 
 This recovers **this week's input**, not verified perpetual API ingestion. Next

@@ -32,9 +32,7 @@ function sourceFooter(rows) {
     ...PLATFORM_ORDER.filter(name => present.includes(name)),
     ...present.filter(name => !PLATFORM_ORDER.includes(name)).sort()
   ];
-  const attribution = rows.some(row => row.fetch_method === 'helloruru-public-api-snapshot')
-    ? '｜Kobo書單：HelloRuru（第三方整理）' : '';
-  return `資料來源：${ordered.join(' / ') || '無'}${attribution}｜自動爬蟲整理`;
+  return `資料來源：${ordered.join(' / ') || '無'}｜自動爬蟲整理`;
 }
 
 function trimTitle(title, max = 36) {

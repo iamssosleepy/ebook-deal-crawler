@@ -27,7 +27,10 @@ test('public snapshot retains third-party provenance and unknown original price'
   assert.throws(() => validateKoboCampaign(rows, 2026, 37), { code: 'KOBO_INVALID_SOURCE' });
   const normalized = normalizeDeals(rows);
   assert.ok(normalized.every(r => r.source_page === SNAPSHOT_SOURCE && r.confidence === 'medium'));
-  assert.match(JSON.stringify(buildDiscordPayload(normalized)), /HelloRuru（第三方整理）/);
+  const payload = buildDiscordPayload(normalized);
+  assert.equal(payload.embeds[0].footer.text, '資料來源：Kobo｜自動爬蟲整理');
+  assert.doesNotMatch(JSON.stringify(payload), /HelloRuru|第三方整理/);
+  assert.ok(normalized.every(r => r.fetch_method === 'helloruru-public-api-snapshot'));
 });
 
 for (const [name, mutate] of [

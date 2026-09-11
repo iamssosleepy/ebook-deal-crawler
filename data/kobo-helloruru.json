@@ -1,0 +1,115 @@
+{
+  "updatedAt": "2026-09-11T04:12:35.754Z",
+  "kobo": {
+    "success": true,
+    "platform": "kobo",
+    "deals": [
+      {
+        "platform": "kobo",
+        "platformName": "Kobo",
+        "dealType": "每日99",
+        "date": "2026-09-10",
+        "title": "人類存在的意義：一個生物學家對生命的思索",
+        "author": "",
+        "coverUrl": "https://kobo-blog.transforms.svdcdn.com/production/img/covers/%E4%BA%BA%E9%A1%9E%E5%AD%98%E5%9C%A8%E7%9A%84%E6%84%8F%E7%BE%A9.jpeg?h=640&q=80&auto=format&fit=clip&dm=1788966132&s=519a9fc0b88da0868f728ac9efd3cfe7",
+        "originalPrice": 0,
+        "dealPrice": 99,
+        "bookUrl": "https://www.kobo.com/tw/zh/ebook/eWgNZKFarzGLpEthRM-_6w",
+        "state": "expired"
+      },
+      {
+        "platform": "kobo",
+        "platformName": "Kobo",
+        "dealType": "每日99",
+        "date": "2026-09-11",
+        "title": "一如既往：不變的人性法則與致富心態",
+        "author": "",
+        "coverUrl": "https://kobo-blog.transforms.svdcdn.com/production/img/covers/%E4%B8%80%E5%A6%82%E6%97%A2%E5%BE%80.jpeg?h=640&q=80&auto=format&fit=clip&dm=1788966617&s=7d65821fab565772e44d7c707a35dd59",
+        "originalPrice": 0,
+        "dealPrice": 99,
+        "bookUrl": "https://www.kobo.com/tw/zh/ebook/XPbdYYUKgDKZnHEy48R0kQ",
+        "state": "normal"
+      },
+      {
+        "platform": "kobo",
+        "platformName": "Kobo",
+        "dealType": "每日99",
+        "date": "2026-09-11",
+        "title": "天赐之日",
+        "author": "",
+        "coverUrl": "https://kobo-blog.transforms.svdcdn.com/production/img/covers/%E5%A4%A9%E8%B5%90%E4%B9%8B%E6%97%A5.jpeg?h=640&q=80&auto=format&fit=clip&dm=1788967104&s=e4ef4828a274b74db4200e87fe4be6c0",
+        "originalPrice": 0,
+        "dealPrice": 99,
+        "bookUrl": "https://www.kobo.com/tw/zh/ebook/Up5On9RQrzG02JWLGSn7hA",
+        "state": "normal"
+      },
+      {
+        "platform": "kobo",
+        "platformName": "Kobo",
+        "dealType": "每日99",
+        "date": "2026-09-12",
+        "title": "宮廷風暴 : 溫莎王室的動蕩與真相",
+        "author": "",
+        "coverUrl": "https://kobo-blog.transforms.svdcdn.com/production/img/covers/%E5%AE%AE%E5%BB%B7%E9%A2%A8%E6%9A%B4.jpeg?h=640&q=80&auto=format&fit=clip&dm=1788967301&s=49eaf8b3577e8436766433da92c8822a",
+        "originalPrice": 0,
+        "dealPrice": 99,
+        "bookUrl": "https://www.kobo.com/tw/zh/ebook/6_x-bhTp0ji6YhVkZpgGoQ",
+        "state": "normal"
+      },
+      {
+        "platform": "kobo",
+        "platformName": "Kobo",
+        "dealType": "每日99",
+        "date": "2026-09-13",
+        "title": "統計操控的真相與謊言：別再讓數字騙了你！一眼看穿投資詐局、不實廣告與虛假民調，打造最強的自我保護力與決策判斷力",
+        "author": "",
+        "coverUrl": "https://kobo-blog.transforms.svdcdn.com/production/img/covers/%E7%B5%B1%E8%A8%88%E6%93%8D%E6%8E%A7%E7%9A%84%E7%9C%9F%E7%9B%B8%E8%88%87%E8%AC%8A%E8%A8%80.jpeg?h=640&q=80&auto=format&fit=clip&dm=1788967529&s=5df77e17dd08cdb9a8482fdf38fd7d32",
+        "originalPrice": 0,
+        "dealPrice": 99,
+        "bookUrl": "https://www.kobo.com/tw/zh/ebook/u2UbROMWrzaBuSXLcRobIg",
+        "state": "normal"
+      },
+      {
+        "platform": "kobo",
+        "platformName": "Kobo",
+        "dealType": "每日99",
+        "date": "2026-09-14",
+        "title": "加密騙局",
+        "author": "",
+        "coverUrl": "https://kobo-blog.transforms.svdcdn.com/production/img/covers/%E5%8A%A0%E5%AF%86%E9%A8%99%E5%B1%80.jpeg?h=640&q=80&auto=format&fit=clip&dm=1788967944&s=43cce22f3b8661e4964ae9caac1027e0",
+        "originalPrice": 0,
+        "dealPrice": 99,
+        "bookUrl": "https://www.kobo.com/tw/zh/ebook/dt0Hlzv9uzysJZHREpCL_Q",
+        "state": "normal"
+      },
+      {
+        "platform": "kobo",
+        "platformName": "Kobo",
+        "dealType": "每日99",
+        "date": "2026-09-15",
+        "title": "集合體",
+        "author": "",
+        "coverUrl": "https://kobo-blog.transforms.svdcdn.com/production/img/covers/%E9%9B%86%E5%90%88%E9%AB%94.jpeg?h=640&q=80&auto=format&fit=clip&dm=1788968228&s=922e4182c15e409f1e7a4364d1f00786",
+        "originalPrice": 0,
+        "dealPrice": 99,
+        "bookUrl": "https://www.kobo.com/tw/zh/ebook/gMcariVCpDGjYwIfkUvNcw",
+        "state": "normal"
+      },
+      {
+        "platform": "kobo",
+        "platformName": "Kobo",
+        "dealType": "每日99",
+        "date": "2026-09-16",
+        "title": "身體要你動：十項自我檢測和提升訓練，找回你該有的靈活與健康",
+        "author": "",
+        "coverUrl": "https://kobo-blog.transforms.svdcdn.com/production/img/covers/%E8%BA%AB%E9%AB%94%E8%A6%81%E4%BD%A0%E5%8B%95.jpeg?h=640&q=80&auto=format&fit=clip&dm=1788968363&s=6dce8dcb9129f2c2cf4570572195b7a3",
+        "originalPrice": 0,
+        "dealPrice": 99,
+        "bookUrl": "https://www.kobo.com/tw/zh/ebook/1fFtc2uZajeZn1HVx2-Hsg",
+        "state": "normal"
+      }
+    ],
+    "source": "Kobo Blog weekly-dd99-2026-w37",
+    "fetchedAt": "2026-09-11T04:12:34.402Z"
+  }
+}

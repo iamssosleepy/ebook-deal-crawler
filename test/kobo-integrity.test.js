@@ -95,7 +95,7 @@ test('parsers retain explicit campaign year and equivalent book fields', () => {
 });
 
 test('complete markdown stops fallback calls', async () => {
-  const result = await fetchKoboDeals({ now, logger: quiet,
+  const result = await fetchKoboDeals({ now, loadSnapshot: async () => null, logger: quiet,
     fetchMarkdown: async url => { assert.equal(url, target); return markdown; },
     loadLocal: () => assert.fail('unexpected local read'),
     fetchHtml: () => assert.fail('unexpected html read') });
@@ -103,7 +103,7 @@ test('complete markdown stops fallback calls', async () => {
 });
 
 test('validated complete local data stops html fetch after proxy fails', async () => {
-  const result = await fetchKoboDeals({ now, logger: quiet, fetchMarkdown: unavailable,
+  const result = await fetchKoboDeals({ now, loadSnapshot: async () => null, logger: quiet, fetchMarkdown: unavailable,
     loadLocal: async (year, week) => { assert.equal(year, 2026); assert.equal(week, 37); return fullRows(); },
     fetchHtml: () => assert.fail('unexpected html read') });
   assert.equal(result.length, 7);
@@ -111,7 +111,7 @@ test('validated complete local data stops html fetch after proxy fails', async (
 
 test('partial local data does not stop complete current-week html fallback', async () => {
   const calls = [];
-  const result = await fetchKoboDeals({ now, logger: quiet, fetchMarkdown: unavailable,
+  const result = await fetchKoboDeals({ now, loadSnapshot: async () => null, logger: quiet, fetchMarkdown: unavailable,
     loadLocal: async () => fullRows().slice(0, 6),
     fetchHtml: async url => { calls.push(url); return html; } });
   assert.deepEqual(calls, [target]); // No tag page or old first candidate.
@@ -120,7 +120,7 @@ test('partial local data does not stop complete current-week html fallback', asy
 
 test('wrong-week markdown cannot bypass validation via a correct requested URL', async () => {
   const old = markdown.replaceAll(/9\/(1[0-6])/g, (_, day) => `9/${Number(day) - 7}`);
-  const result = await fetchKoboDeals({ now, logger: quiet,
+  const result = await fetchKoboDeals({ now, loadSnapshot: async () => null, logger: quiet,
     fetchMarkdown: async () => old, loadLocal: async () => fullRows(), fetchHtml: unavailable });
   assert.deepEqual(result, fullRows());
 });
@@ -128,7 +128,7 @@ test('wrong-week markdown cannot bypass validation via a correct requested URL',
 test('missing W37 reports separate safe stage errors and never returns old data', async () => {
   const warnings = [];
   const old = fullRows().map(r => ({ ...r, sourcePage: target.replace('w37', 'w36') }));
-  await assert.rejects(fetchKoboDeals({ now, logger: { log() {}, warn: m => warnings.push(m) },
+  await assert.rejects(fetchKoboDeals({ now, loadSnapshot: async () => null, logger: { log() {}, warn: m => warnings.push(m) },
     fetchMarkdown: unavailable, loadLocal: async () => old, fetchHtml: async () => '<h1>Unavailable</h1>' }), error => {
     assert.equal(error.code, 'KOBO_CAMPAIGN_UNAVAILABLE');
     assert.deepEqual(error.failures, [

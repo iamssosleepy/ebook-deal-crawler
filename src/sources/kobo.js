@@ -7,6 +7,7 @@ import { absoluteUrl, cleanText, stripTracking } from '../utils/text.js';
 import { isoDateFromTaiwanMonthDay } from '../utils/date.js';
 import { fetchOfficialMarkdown } from '../utils/proxy.js';
 import { campaignWeek, campaignDates, isCampaignSource, isKoboBook, validateKoboCampaign } from './koboValidation.js';
+import { loadKoboSnapshot } from './koboSnapshot.js';
 
 const CONFIG = SOURCES.kobo;
 const DEFAULT_LOCAL_JSONL = '/home/wch/Projects/personal/kobo-weekly-book-list/data/books.jsonl';
@@ -75,8 +76,18 @@ export async function loadLocalKoboDeals(year, week, filePath = process.env.KOBO
 }
 
 export async function fetchKoboDeals({ now = new Date(), fetchMarkdown = fetchKoboMarkdown,
-  loadLocal = loadLocalKoboDeals, fetchHtml = fetchKoboHtml, logger = console } = {}) {
+  loadLocal = loadLocalKoboDeals, fetchHtml = fetchKoboHtml, loadSnapshot = loadKoboSnapshot, logger = console } = {}) {
   const { year, week } = campaignWeek(now);
+  try {
+    const snapshot = await loadSnapshot(now);
+    if (snapshot) {
+      validateKoboCampaign(snapshot, year, week, { allowHelloRuru: true });
+      logger.log(`kobo: W${week} HelloRuru snapshot validated ${snapshot.length} rows (secondary source)`);
+      return snapshot;
+    }
+  } catch {
+    logger.warn(`kobo: W${week} KOBO_SNAPSHOT_REJECTED`);
+  }
   const articleUrl = `https://www.kobo.com/zh/blog/weekly-dd99-${year}-w${week}/`;
   const failures = [];
   const stages = [

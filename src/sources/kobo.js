@@ -6,6 +6,7 @@ import { fetchHtml } from '../utils/http.js';
 import { absoluteUrl, cleanText, stripTracking } from '../utils/text.js';
 import { isoDateFromTaiwanMonthDay } from '../utils/date.js';
 import { fetchOfficialMarkdown } from '../utils/proxy.js';
+import { campaignWeek, campaignDates, isCampaignSource, isKoboBook, validateKoboCampaign } from './koboValidation.js';
 
 const CONFIG = SOURCES.kobo;
 const DEFAULT_LOCAL_JSONL = '/home/wch/Projects/personal/kobo-weekly-book-list/data/books.jsonl';
@@ -33,35 +34,23 @@ async function fetchKoboMarkdown(url) {
   return fetchOfficialMarkdown(url);
 }
 
-function isoWeek(date = new Date()) {
-  const utc = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const day = utc.getUTCDay() || 7;
-  utc.setUTCDate(utc.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
-  const week = Math.ceil((((utc - yearStart) / 86400000) + 1) / 7);
-  return { year: utc.getUTCFullYear(), week };
-}
-
-function campaignWeek(date = new Date()) {
-  const taipei = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
-  const start = new Date(taipei.getFullYear(), 0, 1);
-  const week = Math.floor((taipei - start) / 86400000 / 7) + 1;
-  return { year: taipei.getFullYear(), week };
-}
-
 function extractTitleFromHeading(text) {
   const match = text.match(/《([^》]+)》/);
   return match ? cleanText(match[1]) : '';
 }
 
 export async function loadLocalKoboDeals(year, week, filePath = process.env.KOBO_LOCAL_JSONL || DEFAULT_LOCAL_JSONL) {
+  const dates = campaignDates(year, week);
   try {
     const records = (await fs.readFile(filePath, 'utf8'))
       .split(/\r?\n/)
       .filter(Boolean)
       .map(line => JSON.parse(line))
-      .filter(row => Number(row.year) === year && Number(row.week) === week)
-      .filter(row => row.date && row.title && row.source_url && (row.tw_url || row.hk_url));
+      .filter(row => row && Number(row.year) === year && Number(row.week) === week)
+      .filter(row => dates.includes(row.date) && typeof row.title === 'string' &&
+        cleanText(row.title).replace(/^《|》$/g, '').trim() &&
+        isCampaignSource(row.source_url, year, week) &&
+        (isKoboBook(row.tw_url) || isKoboBook(row.hk_url)));
 
     return records.map(row => ({
       platform: CONFIG.platform,
@@ -73,7 +62,7 @@ export async function loadLocalKoboDeals(year, week, filePath = process.env.KOBO
       salePrice: 99,
       startDate: row.date,
       endDate: row.date,
-      url: stripTracking(row.tw_url || row.hk_url),
+      url: stripTracking(isKoboBook(row.tw_url) ? row.tw_url : row.hk_url),
       coverUrl: '',
       sourcePage: row.source_url,
       fetchMethod: 'local-validated-jsonl',
@@ -85,40 +74,36 @@ export async function loadLocalKoboDeals(year, week, filePath = process.env.KOBO
   }
 }
 
-async function findLatestWeeklyUrl() {
-  const html = await fetchKoboHtml(CONFIG.tagPage);
-  const $ = cheerio.load(html);
-  const candidates = [];
-  $('a[href*="weekly-dd99"]').each((_, node) => {
-    const href = absoluteUrl($(node).attr('href'), CONFIG.tagPage);
-    const text = cleanText($(node).text());
-    if (href && text) candidates.push({ href, text });
-  });
-
-  if (!candidates.length) {
-    const { year, week } = isoWeek();
-    return `https://www.kobo.com/zh/blog/weekly-dd99-${year}-w${week}`;
+export async function fetchKoboDeals({ now = new Date(), fetchMarkdown = fetchKoboMarkdown,
+  loadLocal = loadLocalKoboDeals, fetchHtml = fetchKoboHtml, logger = console } = {}) {
+  const { year, week } = campaignWeek(now);
+  const articleUrl = `https://www.kobo.com/zh/blog/weekly-dd99-${year}-w${week}/`;
+  const failures = [];
+  const stages = [
+    ['markdown', async () => parseKoboMarkdown(await fetchMarkdown(articleUrl), articleUrl, year)],
+    ['local', () => loadLocal(year, week)],
+    // Never choose a category page's first (possibly old) campaign.
+    ['html', async () => parseKoboHtml(await fetchHtml(articleUrl), articleUrl, year)]
+  ];
+  for (const [stage, read] of stages) {
+    try {
+      const deals = validateKoboCampaign(await read(), year, week);
+      logger.log(`kobo: W${week} ${stage} validated ${deals.length} rows`);
+      return deals;
+    } catch (error) {
+      const allowed = ['KOBO_EMPTY', 'KOBO_INVALID_SOURCE', 'KOBO_INVALID_ROW', 'KOBO_INCOMPLETE_DATES'];
+      const code = allowed.includes(error?.code) ? error.code : 'KOBO_READ_FAILED';
+      failures.push({ stage, code });
+      // Do not echo remote response bodies, credentials, or untrusted error text.
+      logger.warn(`kobo: W${week} ${stage} ${code}`);
+    }
   }
-  return candidates[0].href;
+  throw Object.assign(new Error(`Kobo ${year}-W${week} unavailable: ${failures.map(f => `${f.stage}=${f.code}`).join(', ')}`), {
+    code: 'KOBO_CAMPAIGN_UNAVAILABLE', failures
+  });
 }
 
-export async function fetchKoboDeals() {
-  const { year, week } = campaignWeek();
-  let articleUrl = `https://www.kobo.com/zh/blog/weekly-dd99-${year}-w${week}/`;
-  try {
-    const markdown = await fetchKoboMarkdown(articleUrl);
-    const deals = parseKoboMarkdown(markdown, articleUrl);
-    if (deals.length) return deals;
-  } catch (error) {
-    console.warn(`⚠️ kobo text proxy failed: ${error.message}`);
-  }
-  const localDeals = await loadLocalKoboDeals(year, week);
-  if (localDeals.length) {
-    console.log(`ℹ️ kobo: using ${localDeals.length} rows from validated local JSONL`);
-    return localDeals;
-  }
-  articleUrl = await findLatestWeeklyUrl();
-  const html = await fetchKoboHtml(articleUrl);
+export function parseKoboHtml(html, articleUrl, year = campaignWeek().year) {
   const $ = cheerio.load(html);
   const deals = [];
 
@@ -127,7 +112,7 @@ export async function fetchKoboDeals() {
     if (!/Kobo99選書/.test(headingText)) return;
 
     const title = extractTitleFromHeading(headingText);
-    const startDate = isoDateFromTaiwanMonthDay(headingText);
+    const startDate = isoDateFromTaiwanMonthDay(headingText, year);
     if (!title || !startDate) return;
 
     const sectionNodes = [];
@@ -183,7 +168,7 @@ export async function fetchKoboDeals() {
   return deals;
 }
 
-function parseKoboMarkdown(markdown, articleUrl) {
+export function parseKoboMarkdown(markdown, articleUrl, year = campaignWeek().year) {
   const headings = [...markdown.matchAll(/^### .*?(\d{1,2}\/\d{1,2})\s+週[一二三四五六日]\s+Kobo99選書.*$/gm)];
   const deals = [];
   for (let index = 0; index < headings.length; index += 1) {
@@ -191,7 +176,7 @@ function parseKoboMarkdown(markdown, articleUrl) {
     const block = markdown.slice(heading.index, headings[index + 1]?.index ?? markdown.length);
     const headingText = cleanText(heading[0].replace(/\*\*/g, ''));
     const title = extractTitleFromHeading(headingText);
-    const startDate = isoDateFromTaiwanMonthDay(heading[1]);
+    const startDate = isoDateFromTaiwanMonthDay(heading[1], year);
     if (!title || !startDate) continue;
     const twUrl = (block.match(/https:\/\/www\.kobo\.com\/tw\/zh\/ebook\/[^)\s]+/) || [''])[0];
     const author = cleanText((block.match(/^## .*?\s*由\s*(.+?)[＠@◎]?著\s*$/m) || [])[1] || '');

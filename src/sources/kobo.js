@@ -91,9 +91,10 @@ const STAGE_CODES = new Set([
 
 function resolveKoboFallbackUrl() {
   const configured = process.env.KOBO_FALLBACK_URL;
-  if (configured === 'off') return null;
-  if (typeof configured === 'string' && configured !== '') return configured;
-  return CONFIG.fallbackApiUrl;
+  if (typeof configured !== 'string') return null;
+  const trimmed = configured.trim();
+  if (!trimmed || trimmed === 'off') return null;
+  return trimmed;
 }
 
 function defaultReadCache({ year, week }) {

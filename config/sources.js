@@ -9,8 +9,7 @@ export const SOURCES = {
     platform: 'Kobo',
     tagPage: 'https://www.kobo.com/zh/blog/tag/99%E6%9B%B8%E5%96%AE',
     method: 'http+html',
-    accentColor: 0xbf0000,
-    fallbackApiUrl: 'https://ebook-deals.vmpvmp1017.workers.dev/api/deals'
+    accentColor: 0xbf0000
   },
   booksTw: {
     platform: '博客來',

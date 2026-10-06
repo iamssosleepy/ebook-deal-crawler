@@ -30,6 +30,7 @@ Settings → Secrets and variables → Actions → New repository secret
 | `DISCORD_WEBHOOK_URL` | GitHub Secret | Discord 頻道 webhook URL，由程式以 webhook 方式 POST |
 | `DISCORD_THREAD_ID` | GitHub Secret（選用） | 僅 forum channel webhook 需要：要貼進的 forum thread ID |
 | `DISCORD_THREAD_NAME` | GitHub Secret（選用） | 僅 forum channel webhook 需要：每次推播建立新 thread 時的標題 |
+| `KOBO_FALLBACK_URL` | GitHub Secret（選用） | Kobo 次要公開備援來源 API 網址；未設定則停用備援，網址不可寫進 repo |
 
 > Discord 整合僅以 webhook 方式呼叫，不會在原始碼中硬編碼 webhook URL，也不會把 service account JSON 寫進 repo。所有敏感值都從 `process.env` 讀取。
 

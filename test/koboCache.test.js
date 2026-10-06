@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { SOURCES } from '../config/sources.js';
 import { fetchKoboDeals, parseKoboHtml, parseKoboMarkdown } from '../src/sources/kobo.js';
 import { koboCacheDir, readKoboWeekCache, writeKoboWeekCache } from '../src/sources/koboCache.js';
 import { fetchKoboFallbackApi, loadKoboSnapshot } from '../src/sources/koboSnapshot.js';
@@ -12,7 +11,9 @@ import { normalizeDeals } from '../src/normalize.js';
 import { buildDiscordPayload } from '../src/output/discord.js';
 import { rowsForGoogleSheets, writeSheetsCsv } from '../src/output/sheetsCsv.js';
 
-const PRIVACY = /helloruru|vmpvmp1017|workers\.dev/i;
+const FALLBACK_URL = 'https://secondary-source.invalid/api/deals';
+const CANARY = 'SECONDARY_SOURCE_CANARY';
+const PRIVACY = /secondary-source\.invalid|SECONDARY_SOURCE_CANARY/i;
 const now = new Date('2026-10-06T02:00:00Z');
 const quiet = { log() {}, warn() {} };
 
@@ -57,13 +58,13 @@ function localRows(year, week) {
 
 function fallbackPayload(year, week, fetchedAt, mutate = body => body) {
   const body = {
-    unused: 'HelloRuru https://ebook-deals.vmpvmp1017.workers.dev/api/deals',
+    unused: `${CANARY} ${FALLBACK_URL}`,
     kobo: {
       success: true,
       platform: 'kobo',
       source: `Kobo Blog weekly-dd99-${year}-w${week}`,
       fetchedAt,
-      unused: 'vmpvmp1017.workers.dev',
+      unused: CANARY,
       deals: campaignDates(year, week).map((date, index) => ({
         platform: 'kobo',
         title: `備援測試${index}`,
@@ -73,7 +74,7 @@ function fallbackPayload(year, week, fetchedAt, mutate = body => body) {
         originalPrice: 0,
         bookUrl: `https://www.kobo.com/tw/zh/ebook/fallback-${week}-${index}`,
         coverUrl: 'https://kobo-blog.transforms.svdcdn.com/production/img/covers/fallback.jpg',
-        unused: 'HelloRuru'
+        unused: CANARY
       }))
     }
   };
@@ -179,7 +180,7 @@ test('a cache write failure still returns the official rows', async () => {
     readCache: () => assert.fail('read'),
     loadFallback: () => assert.fail('fallback'),
     loadSnapshot: () => assert.fail('file'),
-    writeCache: async () => { throw new Error('EACCES /var/HelloRuru vmpvmp1017.workers.dev'); }
+    writeCache: async () => { throw new Error(`EACCES /var/${CANARY}`); }
   });
   assert.equal(result.length, 7);
   assert.equal(result[0].fetchMethod, 'official-markdown-proxy');
@@ -198,7 +199,7 @@ test('same-week cache is reused and does not call the live fallback', async t =>
   const result = await fetchKoboDeals({
     now,
     logger,
-    fetchMarkdown: async () => { throw new Error('blocked https://ebook-deals.vmpvmp1017.workers.dev/'); },
+    fetchMarkdown: async () => { throw new Error(`blocked ${FALLBACK_URL}`); },
     loadLocal: async () => [],
     fetchHtml: async () => { throw new Error('blocked'); },
     readCache: query => readKoboWeekCache({ ...query, dir }),
@@ -314,17 +315,23 @@ test('live fallback supplies official rows and is not written to the cache', asy
   const seen = [];
   const { lines, logger } = linesOf();
   let wrote = false;
+  const previousFallbackUrl = process.env.KOBO_FALLBACK_URL;
+  process.env.KOBO_FALLBACK_URL = FALLBACK_URL;
+  t.after(() => {
+    if (previousFallbackUrl === undefined) delete process.env.KOBO_FALLBACK_URL;
+    else process.env.KOBO_FALLBACK_URL = previousFallbackUrl;
+  });
   const result = await fetchKoboDeals({
     now,
     logger,
-    fetchMarkdown: async () => { throw new Error('blocked HelloRuru'); },
+    fetchMarkdown: async () => { throw new Error(`blocked ${CANARY}`); },
     loadLocal: async () => [],
-    fetchHtml: async () => { throw new Error('blocked vmpvmp1017.workers.dev'); },
+    fetchHtml: async () => { throw new Error(`blocked ${CANARY}`); },
     readCache: async () => null,
     writeCache: async () => { wrote = true; await writeKoboWeekCache({ year: 2026, week: 40, rows: [], dir, now, stage: 'fallback' }); },
     loadSnapshot: () => assert.fail('file'),
     loadFallback: at => fetchKoboFallbackApi(at, {
-      url: SOURCES.kobo.fallbackApiUrl,
+      url: process.env.KOBO_FALLBACK_URL,
       fetchImpl: async (url, init) => {
         seen.push({ url, method: init.method, headers: init.headers, signal: init.signal });
         return jsonResponse(fallbackPayload(2026, 40, now.toISOString()));
@@ -333,7 +340,7 @@ test('live fallback supplies official rows and is not written to the cache', asy
   });
   assert.equal(wrote, false);
   assert.equal(seen.length, 1);
-  assert.equal(seen[0].url, SOURCES.kobo.fallbackApiUrl);
+  assert.equal(seen[0].url, FALLBACK_URL);
   assert.equal(seen[0].method, 'GET');
   assert.equal(seen[0].headers.accept, 'application/json');
   assert.match(seen[0].headers['user-agent'], /Chrome\/124/);
@@ -390,7 +397,7 @@ test('fallback API rejects bad snapshots and bad responses', async () => {
   });
   assert.equal(nearFuture.length, 7);
 
-  const secret = 'HelloRuru https://ebook-deals.vmpvmp1017.workers.dev/api/deals';
+  const secret = `${CANARY} ${FALLBACK_URL}`;
   let reads = 0;
   await assert.rejects(() => fetchKoboFallbackApi(now, {
     url: secret,
@@ -434,14 +441,14 @@ test('published fallback output and logs omit the secondary source', async t => 
   const rows = await fetchKoboDeals({
     now,
     logger,
-    fetchMarkdown: async () => { throw new Error('https://ebook-deals.vmpvmp1017.workers.dev/api/deals HelloRuru'); },
+    fetchMarkdown: async () => { throw new Error(`${FALLBACK_URL} ${CANARY}`); },
     loadLocal: async () => [],
-    fetchHtml: async () => { throw new Error('workers.dev'); },
+    fetchHtml: async () => { throw new Error(CANARY); },
     readCache: async () => null,
     writeCache: async () => {},
     loadSnapshot: async () => null,
     loadFallback: at => fetchKoboFallbackApi(at, {
-      url: 'https://ebook-deals.vmpvmp1017.workers.dev/api/deals',
+      url: FALLBACK_URL,
       fetchImpl: async () => jsonResponse(fallbackPayload(2026, 40, now.toISOString()))
     })
   });
@@ -467,17 +474,17 @@ test('published fallback output and logs omit the secondary source', async t => 
   assert.ok(realNormalized.every(row => !Object.hasOwn(row, 'sourceFetchedAt')));
 });
 
-test('KOBO_FALLBACK_URL=off disables the live fallback; an empty value does not', async () => {
+test('KOBO_FALLBACK_URL unset, empty, or off disables the live fallback; a URL enables it', async () => {
   const previous = process.env.KOBO_FALLBACK_URL;
   const originalFetch = globalThis.fetch;
   const fetches = [];
   globalThis.fetch = async url => {
     fetches.push(String(url));
-    throw new Error(`blocked ${url} HelloRuru`);
+    throw new Error(`blocked ${url} ${CANARY}`);
   };
   const base = {
     now,
-    fetchMarkdown: async () => { throw new Error('markdown https://ebook-deals.vmpvmp1017.workers.dev/api/deals HelloRuru'); },
+    fetchMarkdown: async () => { throw new Error(`markdown ${FALLBACK_URL} ${CANARY}`); },
     loadLocal: async () => [],
     fetchHtml: async () => { throw new Error('html blocked'); },
     readCache: async () => null,
@@ -485,6 +492,32 @@ test('KOBO_FALLBACK_URL=off disables the live fallback; an empty value does not'
     loadSnapshot: async () => null
   };
   try {
+    delete process.env.KOBO_FALLBACK_URL;
+    const unsetLogs = linesOf();
+    await assert.rejects(() => fetchKoboDeals({ ...base, logger: unsetLogs.logger }), error => {
+      assert.equal(error.failures.find(item => item.stage === 'fallback').code, 'KOBO_FALLBACK_DISABLED');
+      assert.doesNotMatch(error.message, PRIVACY);
+      assert.doesNotMatch(error.message, /https?:/);
+      return true;
+    });
+    assert.deepEqual(fetches, []);
+    assert.ok(unsetLogs.lines.includes('kobo: W40 fallback KOBO_FALLBACK_DISABLED'));
+    assert.doesNotMatch(unsetLogs.lines.join('\n'), PRIVACY);
+    assert.doesNotMatch(unsetLogs.lines.join('\n'), /https?:/);
+
+    process.env.KOBO_FALLBACK_URL = '';
+    const emptyLogs = linesOf();
+    await assert.rejects(() => fetchKoboDeals({ ...base, logger: emptyLogs.logger }), error => {
+      assert.equal(error.failures.find(item => item.stage === 'fallback').code, 'KOBO_FALLBACK_DISABLED');
+      assert.doesNotMatch(error.message, PRIVACY);
+      assert.doesNotMatch(error.message, /https?:/);
+      return true;
+    });
+    assert.deepEqual(fetches, []);
+    assert.ok(emptyLogs.lines.includes('kobo: W40 fallback KOBO_FALLBACK_DISABLED'));
+    assert.doesNotMatch(emptyLogs.lines.join('\n'), PRIVACY);
+    assert.doesNotMatch(emptyLogs.lines.join('\n'), /https?:/);
+
     process.env.KOBO_FALLBACK_URL = 'off';
     const disabledLogs = linesOf();
     await assert.rejects(() => fetchKoboDeals({ ...base, logger: disabledLogs.logger }), error => {
@@ -498,17 +531,18 @@ test('KOBO_FALLBACK_URL=off disables the live fallback; an empty value does not'
     assert.doesNotMatch(disabledLogs.lines.join('\n'), PRIVACY);
     assert.doesNotMatch(disabledLogs.lines.join('\n'), /https?:/);
 
-    process.env.KOBO_FALLBACK_URL = '';
-    const emptyLogs = linesOf();
-    await assert.rejects(() => fetchKoboDeals({ ...base, logger: emptyLogs.logger }), error => {
+    process.env.KOBO_FALLBACK_URL = FALLBACK_URL;
+    const enabledLogs = linesOf();
+    await assert.rejects(() => fetchKoboDeals({ ...base, logger: enabledLogs.logger }), error => {
       assert.equal(error.failures.find(item => item.stage === 'fallback').code, 'KOBO_FALLBACK_FAILED');
       assert.doesNotMatch(error.message, PRIVACY);
+      assert.doesNotMatch(error.message, /https?:/);
       return true;
     });
-    assert.deepEqual(fetches, [SOURCES.kobo.fallbackApiUrl]);
-    assert.ok(emptyLogs.lines.includes('kobo: W40 fallback KOBO_FALLBACK_FAILED'));
-    assert.doesNotMatch(emptyLogs.lines.join('\n'), PRIVACY);
-    assert.doesNotMatch(emptyLogs.lines.join('\n'), /https?:/);
+    assert.deepEqual(fetches, [FALLBACK_URL]);
+    assert.ok(enabledLogs.lines.includes('kobo: W40 fallback KOBO_FALLBACK_FAILED'));
+    assert.doesNotMatch(enabledLogs.lines.join('\n'), PRIVACY);
+    assert.doesNotMatch(enabledLogs.lines.join('\n'), /https?:/);
   } finally {
     globalThis.fetch = originalFetch;
     if (previous === undefined) delete process.env.KOBO_FALLBACK_URL;
@@ -521,7 +555,7 @@ test('cache names pad the week, ignore other weeks, and stay disabled without a 
   await writeKoboWeekCache({ year: 2026, week: 9, rows: [], dir, now, stage: 'markdown' });
   assert.ok((await fs.readdir(dir)).includes('kobo-week-2026-w09.json'));
   await assert.rejects(() => readKoboWeekCache({ year: 2026, week: 9, dir }), { code: 'KOBO_CACHE_INVALID' });
-  await fs.writeFile(path.join(dir, 'kobo-week-2026-w40.json'), '{"rows": HelloRuru workers.dev');
+  await fs.writeFile(path.join(dir, 'kobo-week-2026-w40.json'), `{"rows": ${CANARY}`);
   await assert.rejects(() => readKoboWeekCache({ year: 2026, week: 40, dir }), {
     code: 'KOBO_CACHE_INVALID',
     message: 'KOBO_CACHE_INVALID'
@@ -557,7 +591,7 @@ test('cache names pad the week, ignore other weeks, and stay disabled without a 
 
 test('fallback coverUrl drops forbidden hosts and preserves svdcdn', async () => {
   const payload = fallbackPayload(2026, 40, now.toISOString(), data => {
-    data.kobo.deals[0].coverUrl = 'https://example.workers.dev/x.jpg';
+    data.kobo.deals[0].coverUrl = 'https://cdn.secondary-source.invalid/x.jpg';
     return data;
   });
   const rows = await fetchKoboFallbackApi(now, {

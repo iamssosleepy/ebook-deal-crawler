@@ -10,6 +10,10 @@ import { normalizeDeals } from '../src/normalize.js';
 import { buildDiscordPayload } from '../src/output/discord.js';
 import { rowsForGoogleSheets } from '../src/output/sheetsCsv.js';
 
+const FALLBACK_URL = 'https://secondary-source.invalid/api/deals';
+const CANARY = 'SECONDARY_SOURCE_CANARY';
+const PRIVACY = /secondary-source\.invalid|SECONDARY_SOURCE_CANARY/i;
+
 const now = new Date('2026-09-11T08:00:00Z');
 const fixture = () => ({ kobo: { success: true, platform: 'kobo',
   source: 'Kobo Blog weekly-dd99-2026-w37', fetchedAt: '2026-09-11T04:12:34.402Z',
@@ -20,7 +24,7 @@ const fixture = () => ({ kobo: { success: true, platform: 'kobo',
 
 test('fallback snapshot cites the official article and keeps unknown original price', () => {
   const data = fixture();
-  data.note = 'HelloRuru https://ebook-deals.vmpvmp1017.workers.dev/api/deals';
+  data.note = `${CANARY} ${FALLBACK_URL}`;
   data.kobo.deals[0].coverUrl = 'https://kobo-blog.transforms.svdcdn.com/production/img/covers/synthetic.jpg';
   const rows = parseKoboSnapshot(data, now);
   const official = 'https://www.kobo.com/zh/blog/weekly-dd99-2026-w37/';
@@ -39,7 +43,7 @@ test('fallback snapshot cites the official article and keeps unknown original pr
   const payload = buildDiscordPayload(normalized);
   assert.equal(payload.embeds[0].footer.text, '資料來源：Kobo｜自動爬蟲整理');
   const published = `${JSON.stringify(normalized)}\n${JSON.stringify(rowsForGoogleSheets(normalized))}\n${JSON.stringify(payload)}`;
-  assert.doesNotMatch(published, /helloruru|vmpvmp1017|workers\.dev/i);
+  assert.doesNotMatch(published, PRIVACY);
   assert.doesNotMatch(published, /第三方整理/);
 });
 

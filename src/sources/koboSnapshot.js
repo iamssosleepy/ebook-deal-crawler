@@ -3,13 +3,13 @@ import { fileURLToPath } from 'node:url';
 import { cleanText, stripTracking } from '../utils/text.js';
 import { campaignWeek, validateKoboCampaign } from './koboValidation.js';
 
-// Fallback snapshot: parse a checked-in file or one JSON GET. Rows cite the
-// official Kobo article. This module never calls a refresh endpoint and never
+// Fallback snapshot: parse a checked-in file or one JSON GET from a secondary public source.
+// Rows cite the official Kobo article. This module never calls a refresh endpoint and never
 // puts a URL or response body on an error.
 const MAX_BYTES = 1024 * 1024;
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 AppleWebKit like Gecko Chrome/124 Safari/537.36';
 
-export const SNAPSHOT_PATH = fileURLToPath(new URL('../../data/kobo-helloruru.json', import.meta.url));
+export const SNAPSHOT_PATH = fileURLToPath(new URL('../../data/kobo-snapshot.json', import.meta.url));
 
 function fail(code) {
   throw Object.assign(new Error(code), { code });

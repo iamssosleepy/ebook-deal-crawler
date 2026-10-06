@@ -37,7 +37,7 @@ Read order for the current campaign week (`campaignWeek()` / `campaignDates()`):
 2. Local JSONL. A row is valid only when it matches the target year/week and contains date, title, a product link, and an official `source_url`.
 3. The same official article via HTML.
 4. Same-week cache of rows saved from a successful official markdown or HTML read in this campaign week. A prior week's cache is never read.
-5. Secondary public fallback (live API, then the checked-in snapshot file), only when the steps above fail. Eric approved this on 2026-10-06 22:13 (Asia/Taipei). Rows are validated with the snapshot rules. Published output and CI logs do not name this fallback.
+5. Secondary public fallback (live API, then the checked-in snapshot file), only when the steps above fail. Secondary public source approved by Eric 2026-10-06. The live fallback is configured only by the repository secret / environment variable `KOBO_FALLBACK_URL` (unset, empty, or `off` disables it; never commit the URL). Rows are validated with the snapshot rules. Published output and CI logs do not name this fallback.
 
 A successful official markdown or HTML read is written to the same-week cache. Local, cache, and fallback rows are not written back as official cache.
 

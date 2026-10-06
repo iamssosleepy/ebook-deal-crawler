@@ -108,6 +108,8 @@ jobs:
           KOBO_LOCAL_JSONL: /home/wch/Projects/personal/kobo-weekly-book-list/data/books.jsonl
           BOOKS_TW_LOCAL_HTML: /home/wch/.cache/ai-workbench/books-tw.html
           BOOKS_TW_LOCAL_MAX_AGE_MINUTES: '360'
+          # Secondary Kobo fallback URL lives only in this repository secret; unset disables it.
+          KOBO_FALLBACK_URL: ${{ secrets.KOBO_FALLBACK_URL }}
       - name: Upload generated reports
         if: always()
         uses: actions/upload-artifact@v7

@@ -46,6 +46,17 @@ const html = dates.map((date, i) =>
 const quiet = { log() {}, warn() {} };
 const unavailable = async () => { throw new Error('SENSITIVE_REMOTE_BODY'); };
 
+function watchers() {
+  const calls = [];
+  return {
+    calls,
+    readCache: async () => { calls.push('read'); return null; },
+    writeCache: async () => { calls.push('write'); },
+    loadFallback: async () => { calls.push('fallback'); return null; },
+    loadSnapshot: async () => { calls.push('snapshot'); return null; }
+  };
+}
+
 test('campaign uses Taipei midnight, independent of machine timezone', () => {
   assert.deepEqual(campaignWeek(new Date('2026-09-09T15:59:59Z')), { year: 2026, week: 36 });
   assert.deepEqual(campaignWeek(new Date('2026-09-09T16:00:00Z')), { year: 2026, week: 37 });
@@ -95,50 +106,64 @@ test('parsers retain explicit campaign year and equivalent book fields', () => {
 });
 
 test('complete markdown stops fallback calls', async () => {
-  const result = await fetchKoboDeals({ now, loadSnapshot: async () => null, logger: quiet,
+  const later = watchers();
+  const result = await fetchKoboDeals({ now, logger: quiet, ...later,
     fetchMarkdown: async url => { assert.equal(url, target); return markdown; },
     loadLocal: () => assert.fail('unexpected local read'),
     fetchHtml: () => assert.fail('unexpected html read') });
   assert.equal(result.length, 7);
+  assert.deepEqual(later.calls, ['write']);
 });
 
 test('validated complete local data stops html fetch after proxy fails', async () => {
-  const result = await fetchKoboDeals({ now, loadSnapshot: async () => null, logger: quiet, fetchMarkdown: unavailable,
+  const later = watchers();
+  const result = await fetchKoboDeals({ now, logger: quiet, fetchMarkdown: unavailable, ...later,
     loadLocal: async (year, week) => { assert.equal(year, 2026); assert.equal(week, 37); return fullRows(); },
     fetchHtml: () => assert.fail('unexpected html read') });
   assert.equal(result.length, 7);
+  assert.deepEqual(later.calls, []);
 });
 
 test('partial local data does not stop complete current-week html fallback', async () => {
   const calls = [];
-  const result = await fetchKoboDeals({ now, loadSnapshot: async () => null, logger: quiet, fetchMarkdown: unavailable,
+  const later = watchers();
+  const result = await fetchKoboDeals({ now, logger: quiet, fetchMarkdown: unavailable, ...later,
     loadLocal: async () => fullRows().slice(0, 6),
     fetchHtml: async url => { calls.push(url); return html; } });
   assert.deepEqual(calls, [target]); // No tag page or old first candidate.
   assert.equal(result.length, 7);
+  assert.deepEqual(later.calls, ['write']);
 });
 
 test('wrong-week markdown cannot bypass validation via a correct requested URL', async () => {
   const old = markdown.replaceAll(/9\/(1[0-6])/g, (_, day) => `9/${Number(day) - 7}`);
-  const result = await fetchKoboDeals({ now, loadSnapshot: async () => null, logger: quiet,
+  const later = watchers();
+  const result = await fetchKoboDeals({ now, logger: quiet, ...later,
     fetchMarkdown: async () => old, loadLocal: async () => fullRows(), fetchHtml: unavailable });
   assert.deepEqual(result, fullRows());
+  assert.deepEqual(later.calls, []);
 });
 
 test('missing W37 reports separate safe stage errors and never returns old data', async () => {
   const warnings = [];
+  const later = watchers();
   const old = fullRows().map(r => ({ ...r, sourcePage: target.replace('w37', 'w36') }));
-  await assert.rejects(fetchKoboDeals({ now, loadSnapshot: async () => null, logger: { log() {}, warn: m => warnings.push(m) },
+  await assert.rejects(fetchKoboDeals({ now, logger: { log() {}, warn: m => warnings.push(m) }, ...later,
     fetchMarkdown: unavailable, loadLocal: async () => old, fetchHtml: async () => '<h1>Unavailable</h1>' }), error => {
     assert.equal(error.code, 'KOBO_CAMPAIGN_UNAVAILABLE');
     assert.deepEqual(error.failures, [
       { stage: 'markdown', code: 'KOBO_READ_FAILED' },
       { stage: 'local', code: 'KOBO_INVALID_SOURCE' },
-      { stage: 'html', code: 'KOBO_EMPTY' }
+      { stage: 'html', code: 'KOBO_EMPTY' },
+      { stage: 'cache', code: 'KOBO_EMPTY' },
+      { stage: 'fallback', code: 'KOBO_EMPTY' },
+      { stage: 'fallback-file', code: 'KOBO_EMPTY' }
     ]);
+    assert.equal(error.message, 'Kobo 2026-W37 unavailable: markdown=KOBO_READ_FAILED, local=KOBO_INVALID_SOURCE, html=KOBO_EMPTY, cache=KOBO_EMPTY, fallback=KOBO_EMPTY, fallback-file=KOBO_EMPTY');
     assert.ok(!error.message.includes('SENSITIVE_REMOTE_BODY'));
     return true;
   });
-  assert.equal(warnings.length, 3);
+  assert.deepEqual(later.calls, ['read', 'fallback', 'snapshot']);
+  assert.equal(warnings.length, 6);
   assert.ok(warnings.every(w => !w.includes('SENSITIVE_REMOTE_BODY')));
 });

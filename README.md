@@ -138,7 +138,7 @@ npm run crawl
 
 ## 已知注意事項
 
-- Kobo 在某些網路路徑會回傳 403 或 challenge page。官方來源失效時，只接受目標年度／週次、日期、書名、購買連結與官方 `source_url` 都完整的本機 JSONL 參考資料。若官方路徑與有效參考資料都無法產生 Kobo 項目，`REQUIRE_ALL_SOURCES=1` 會停止當次正式流程，禁止更新 Sheet 或發送 Discord。
+- Kobo 在某些網路路徑會回傳 403 或 challenge page。讀取順序是：官方週文章 markdown、目標年度／週次完整的本機 JSONL、官方週文章 HTML、同一個活動週的官方讀取快取、次要備援。快取寫在 `KOBO_CACHE_DIR`（未設定時用 `DELIVERY_STATE_DIR`），只在 markdown 或 HTML 成功時寫入，只重用同一個活動週，不跨週。次要備援可用 `KOBO_FALLBACK_URL=off` 關閉。發布到 CSV、Google Sheets、Discord 的備援列使用官方文章網址，`fetch_method` 為 `kobo-fallback`，信心等級 medium；執行紀錄只寫固定代碼，不寫備援來源名稱或網址。若全部階段都無法產生該週 Kobo 項目，`REQUIRE_ALL_SOURCES=1` 會停止當次正式流程，禁止更新 Sheet 或發送 Discord。
 - Readmoo 是 JS 動態渲染，必須安裝 Playwright Chromium，不能只靠 `fetch()`。
 - 博客來活動頁有很多暢銷榜/新書推薦，本專案先只保留 66/99 的每日 e 書候選，避免推播混入一般推薦書。
 - 2026-08-27 WSL 與 Jina 文字代理均收到博客來 HTTP 403，但 Windows 原生

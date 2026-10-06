@@ -31,11 +31,17 @@ When evidence is insufficient, label the row as `history-building`, not
 
 ## Kobo hard stop
 
-The live Kobo source is preferred. A local fallback row is valid only when it
-matches the target year/week and contains date, title, a product link, and an
-official `source_url`. If the live paths and valid fallback both produce no
-Kobo rows, `REQUIRE_ALL_SOURCES=1` must stop that production run before Google
-Sheets or Discord writes.
+Read order for the current campaign week (`campaignWeek()` / `campaignDates()`):
+
+1. Official Kobo Blog article via markdown.
+2. Local JSONL. A row is valid only when it matches the target year/week and contains date, title, a product link, and an official `source_url`.
+3. The same official article via HTML.
+4. Same-week cache of rows saved from a successful official markdown or HTML read in this campaign week. A prior week's cache is never read.
+5. Secondary public fallback (live API, then the checked-in snapshot file), only when the steps above fail. Eric approved this on 2026-10-06 22:13 (Asia/Taipei). Rows are validated with the snapshot rules. Published output and CI logs do not name this fallback.
+
+A successful official markdown or HTML read is written to the same-week cache. Local, cache, and fallback rows are not written back as official cache.
+
+If every step fails, `REQUIRE_ALL_SOURCES=1` must stop that production run before Google Sheets or Discord writes.
 
 ## Consolidation milestone
 

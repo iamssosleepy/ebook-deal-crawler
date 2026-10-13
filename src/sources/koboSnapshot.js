@@ -39,7 +39,7 @@ function sanitizeCoverUrl(url) {
 function safeMeta(value) {
   if (typeof value !== 'string') return value === undefined ? 'missing' : typeof value;
   if (/:\/\//.test(value)) return 'url-redacted';
-  return value.replace(/[^A-Za-z0-9._:+/-]/g, '?').slice(0, 48);
+  return value.replace(/[^A-Za-z0-9._:+/,-]/g, '?').slice(0, 48);
 }
 
 export function logSnapshotMeta(logger, week, label, meta) {

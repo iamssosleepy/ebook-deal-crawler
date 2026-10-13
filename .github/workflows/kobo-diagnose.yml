@@ -1,0 +1,53 @@
+name: Kobo diagnose (read-only)
+
+# Manual only. Opens the current-week Kobo dd99 article once and one book page once with a
+# headed Chromium under Xvfb. No Sheets, no Discord, no secrets.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kobo-diagnose
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: [self-hosted, linux, x64, ebook-deals, desktop]
+    timeout-minutes: 10
+    steps:
+      - name: Verify runner
+        shell: bash
+        env:
+          ACTUAL_RUNNER: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          if [ "$ACTUAL_RUNNER" != "eric-desktop-wsl" ]; then
+            echo "KOBO_DIAG_REFUSED runner=$ACTUAL_RUNNER" >&2
+            exit 1
+          fi
+          echo "KOBO_DIAG runner=$ACTUAL_RUNNER"
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - name: Check Xvfb and Playwright Chromium
+        shell: bash
+        run: |
+          set -uo pipefail
+          ok=1
+          if [ -z "${DISPLAY:-}" ] && ! command -v Xvfb >/dev/null; then
+            echo "::error::Xvfb missing. Install once on the runner: sudo apt-get install -y xvfb"; ok=0
+          fi
+          if ! node -e "import('playwright').then(({chromium})=>require('fs').accessSync(chromium.executablePath()))" 2>/dev/null; then
+            echo "::error::Playwright Chromium missing. Install once on the runner: npx playwright install --with-deps chromium"; ok=0
+          fi
+          [ "$ok" = 1 ] || exit 2
+          echo "KOBO_DIAG deps ok display=${DISPLAY:-none}"
+      - name: Probe Kobo (2 page loads)
+        env:
+          TZ: Asia/Taipei
+        run: node scripts/kobo-diagnose.js

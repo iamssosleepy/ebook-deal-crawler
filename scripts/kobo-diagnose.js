@@ -9,7 +9,7 @@ import { openHeaded, withHeadedBrowser } from '../src/utils/headedBrowser.js';
 function requireDeps() {
   const missing = [];
   if (!process.env.DISPLAY) {
-    try { execFileSync('which', ['Xvfb'], { stdio: 'ignore' }); } catch { missing.push('Xvfb (sudo apt-get install -y xvfb)'); }
+    try { execFileSync('which', ['Xvfb'], { stdio: 'ignore' }); } catch { missing.push('Xvfb (sudo apt-get install -y xvfb xauth xfonts-base)'); }
   }
   try { execFileSync('npx', ['playwright', '--version'], { stdio: 'ignore' }); } catch { missing.push('playwright (npm ci)'); }
   if (missing.length) {
@@ -43,7 +43,10 @@ try {
   });
 } catch (error) {
   console.error(`KOBO_DIAG_FAILED ${error.code || error.name}`);
-  if (error.code === 'XVFB_UNAVAILABLE') console.error('Xvfb could not start; install xvfb on the runner.');
+  if (error.code === 'XVFB_UNAVAILABLE') {
+    console.error(`KOBO_DIAG_XVFB_STDERR ${String(error.stderr || '').slice(0, 300)}`);
+    console.error('Xvfb could not start; check the stderr and /tmp/.X11-unix hints above. Install dependencies: sudo apt-get install -y xvfb xauth xfonts-base');
+  }
   else if (/Executable doesn't exist|browserType\.launch/.test(String(error.message))) console.error('Chromium missing; run: npx playwright install --with-deps chromium');
   process.exit(1);
 }

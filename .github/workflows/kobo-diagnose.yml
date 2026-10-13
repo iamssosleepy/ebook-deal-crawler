@@ -34,13 +34,26 @@ jobs:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
-      - name: Check Xvfb and Playwright Chromium
+      - name: Check Xvfb, xauth and Playwright Chromium
         shell: bash
         run: |
           set -uo pipefail
           ok=1
+          for dependency in Xvfb xvfb-run xauth; do
+            if ! command -v "$dependency" >/dev/null; then
+              echo "::warning::$dependency missing. Install once on the runner: sudo apt-get install -y xvfb xauth xfonts-base"
+            fi
+          done
           if [ -z "${DISPLAY:-}" ] && ! command -v Xvfb >/dev/null; then
-            echo "::error::Xvfb missing. Install once on the runner: sudo apt-get install -y xvfb"; ok=0
+            echo "::error::Xvfb required without DISPLAY. Run: sudo apt-get install -y xvfb xauth xfonts-base"; ok=0
+          fi
+          if [ -z "${DISPLAY:-}" ] && command -v xvfb-run >/dev/null && ! command -v xauth >/dev/null; then
+            echo "::error::xvfb-run requires xauth. Run: sudo apt-get install -y xvfb xauth xfonts-base"; ok=0
+          fi
+          if [ -d /tmp/.X11-unix ]; then
+            stat -c 'KOBO_DIAG_X11_SOCKET_DIR mode=%a owner=%U:%G' /tmp/.X11-unix
+          else
+            echo "KOBO_DIAG_X11_SOCKET_DIR mode=missing"
           fi
           if ! node -e "import('playwright').then(({chromium})=>require('fs').accessSync(chromium.executablePath()))" 2>/dev/null; then
             echo "::error::Playwright Chromium missing. Install once on the runner: npx playwright install --with-deps chromium"; ok=0
@@ -48,6 +61,16 @@ jobs:
           [ "$ok" = 1 ] || exit 2
           echo "KOBO_DIAG deps ok display=${DISPLAY:-none}"
       - name: Probe Kobo (2 page loads)
+        shell: bash
         env:
           TZ: Asia/Taipei
-        run: node scripts/kobo-diagnose.js
+        run: |
+          set -euo pipefail
+          if [ -z "${DISPLAY:-}" ] && command -v xvfb-run >/dev/null; then
+            server_args="-screen 0 1280x800x24 -nolisten tcp"
+            # WSLg mounts /tmp/.X11-unix read-only: use the Linux abstract X socket only.
+            if [ ! -w /tmp/.X11-unix ]; then server_args="$server_args -nolisten unix"; fi
+            xvfb-run -a --server-args="$server_args" node scripts/kobo-diagnose.js
+          else
+            node scripts/kobo-diagnose.js
+          fi

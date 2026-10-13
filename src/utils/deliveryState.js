@@ -15,6 +15,25 @@ export async function readDiscordReceipt(stateDir, date) {
   }
 }
 
+export async function deliverDiscordDigest({
+  env = process.env,
+  stateDir,
+  date,
+  post,
+  readReceipt = readDiscordReceipt,
+  writeReceipt = writeDiscordReceipt
+}) {
+  const previousReceipt = env.FORCE_DISCORD_DELIVERY === '1'
+    ? null
+    : await readReceipt(stateDir, date);
+  if (previousReceipt) return { skipped: true, receipt: previousReceipt };
+
+  const receipt = await post();
+  // Test sends must not mark the official daily digest as delivered.
+  if (env.DISCORD_TEST_MODE !== '1') await writeReceipt(stateDir, date, receipt);
+  return { skipped: false, receipt };
+}
+
 export async function writeDiscordReceipt(stateDir, date, receipt) {
   if (!stateDir) return;
   await fs.mkdir(stateDir, { recursive: true, mode: 0o700 });

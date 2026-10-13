@@ -35,14 +35,23 @@ export function prepareX11SocketDirectory({ fsImpl = fs, log = console.error } =
     if (!stats.isDirectory() || mode !== 0o1777 || !writable) {
       hint(`mode=${mode.toString(8)} writable=${writable} directory=${stats.isDirectory()}`);
     }
+    return writable;
   } catch (error) {
     // Directory repair is best effort; Xvfb stderr still supplies the actual startup failure.
     hint(`could not prepare directory (${error.code || error.name})`);
+    return false;
   }
 }
 
 export function startVirtualDisplay({ spawnImpl = spawn, timeoutMs = 10000, fsImpl = fs, log = console.error } = {}) {
-  prepareX11SocketDirectory({ fsImpl, log });
+  // WSLg mounts /tmp/.X11-unix read-only; Xvfb then cannot bind its path socket. Linux X clients
+  // also try the abstract socket, so listen only there in that case.
+  const socketDirWritable = prepareX11SocketDirectory({ fsImpl, log });
+  const args = ['-displayfd', '1', '-screen', '0', '1280x800x24', '-nolisten', 'tcp'];
+  if (!socketDirWritable) {
+    args.push('-nolisten', 'unix');
+    log('XVFB_ABSTRACT_SOCKET_ONLY /tmp/.X11-unix not writable; starting Xvfb with -nolisten unix');
+  }
   return new Promise((resolve, reject) => {
     let child;
     let timer;
@@ -59,7 +68,7 @@ export function startVirtualDisplay({ spawnImpl = spawn, timeoutMs = 10000, fsIm
       if (stop) child?.kill();
     };
     try {
-      child = spawnImpl('Xvfb', ['-displayfd', '1', '-screen', '0', '1280x800x24', '-nolisten', 'tcp'],
+      child = spawnImpl('Xvfb', args,
         { stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (error) {
       fail(`spawn failed (${error.code || error.message})`, { cause: error });

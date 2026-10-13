@@ -67,7 +67,10 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${DISPLAY:-}" ] && command -v xvfb-run >/dev/null; then
-            xvfb-run -a --server-args="-screen 0 1280x800x24 -nolisten tcp" node scripts/kobo-diagnose.js
+            server_args="-screen 0 1280x800x24 -nolisten tcp"
+            # WSLg mounts /tmp/.X11-unix read-only: use the Linux abstract X socket only.
+            if [ ! -w /tmp/.X11-unix ]; then server_args="$server_args -nolisten unix"; fi
+            xvfb-run -a --server-args="$server_args" node scripts/kobo-diagnose.js
           else
             node scripts/kobo-diagnose.js
           fi

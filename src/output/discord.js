@@ -39,17 +39,22 @@ function trimTitle(title, max = 36) {
   return title.length > max ? `${title.slice(0, max - 1)}…` : title;
 }
 
+// Rows from the third-party weekly list are announced prices, not checkout-verified.
+function thirdPartyTag(row) {
+  return row.fetch_method === 'kobo99-tracker' ? '｜第三方週公告' : '';
+}
+
 function dealLine(row) {
   const price = row.sale_price_twd ? `NT$${row.sale_price_twd}` : '價格未標示';
   const discount = row.discount_pct ? `｜${row.discount_pct}% off` : '';
   const urgency = Number(row.days_left) === 0 ? '｜⚠️ 今天到期' : '';
-  return `• **${row.platform}**｜[${trimTitle(row.title)}](${row.canonical_url || row.url})｜${price}${discount}｜到 ${formatTwDate(row.end_date)}${urgency}`;
+  return `• **${row.platform}**｜[${trimTitle(row.title)}](${row.canonical_url || row.url})｜${price}${discount}｜到 ${formatTwDate(row.end_date)}${urgency}${thirdPartyTag(row)}`;
 }
 
 function upcomingDealLine(row) {
   const price = row.sale_price_twd ? `NT$${row.sale_price_twd}` : '價格未標示';
   const discount = row.discount_pct ? `｜${row.discount_pct}% off` : '';
-  return `• **${row.platform}**｜[${trimTitle(row.title)}](${row.canonical_url || row.url})｜${formatTwDate(row.start_date)} 開始｜${price}${discount}`;
+  return `• **${row.platform}**｜[${trimTitle(row.title)}](${row.canonical_url || row.url})｜${formatTwDate(row.start_date)} 開始｜${price}${discount}${thirdPartyTag(row)}`;
 }
 
 function field(name, rows, fallback = '目前沒有符合條件的項目。', renderer = dealLine) {

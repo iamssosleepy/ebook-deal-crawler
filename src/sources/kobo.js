@@ -7,7 +7,7 @@ import { absoluteUrl, cleanText, stripTracking } from '../utils/text.js';
 import { isoDateFromTaiwanMonthDay } from '../utils/date.js';
 import { fetchOfficialMarkdown } from '../utils/proxy.js';
 import { campaignWeek, campaignDates, isCampaignSource, isKoboBook, validateKoboCampaign } from './koboValidation.js';
-import { fetchKoboFallbackApi, loadKoboSnapshot } from './koboSnapshot.js';
+import { fetchKobo99Tracker, fetchKoboFallbackApi, loadKoboSnapshot } from './koboSnapshot.js';
 import { koboCacheDir, readKoboWeekCache, writeKoboWeekCache } from './koboCache.js';
 
 const CONFIG = SOURCES.kobo;
@@ -86,7 +86,8 @@ const STAGE_CODES = new Set([
   'KOBO_SNAPSHOT_INVALID',
   'KOBO_SNAPSHOT_INVALID_ROW',
   'KOBO_SNAPSHOT_TOO_LARGE',
-  'KOBO_FALLBACK_DISABLED'
+  'KOBO_FALLBACK_DISABLED',
+  'KOBO_TRACKER_FAILED'
 ]);
 
 function resolveKoboFallbackUrl() {
@@ -105,10 +106,10 @@ function defaultWriteCache(payload) {
   return writeKoboWeekCache({ ...payload, dir: koboCacheDir() });
 }
 
-async function defaultLoadFallback(now) {
+async function defaultLoadFallback(now, { logger } = {}) {
   const url = resolveKoboFallbackUrl();
   if (url === null) throw Object.assign(new Error('KOBO_FALLBACK_DISABLED'), { code: 'KOBO_FALLBACK_DISABLED' });
-  return fetchKoboFallbackApi(now, { url });
+  return fetchKoboFallbackApi(now, { url, logger });
 }
 
 export async function fetchKoboDeals({
@@ -119,7 +120,8 @@ export async function fetchKoboDeals({
   readCache = defaultReadCache,
   writeCache = defaultWriteCache,
   loadFallback = defaultLoadFallback,
-  loadSnapshot = loadKoboSnapshot,
+  loadTracker = (n, opts) => fetchKobo99Tracker(n, opts),
+  loadSnapshot = (n, opts) => loadKoboSnapshot(n, undefined, opts),
   logger = console
 } = {}) {
   const { year, week } = campaignWeek(now);
@@ -131,8 +133,9 @@ export async function fetchKoboDeals({
     // Never choose a category page's first (possibly old) campaign.
     ['html', async () => parseKoboHtml(await fetchHtml(articleUrl), articleUrl, year), true],
     ['cache', () => readCache({ year, week }), false],
-    ['fallback', () => loadFallback(now), false],
-    ['fallback-file', () => loadSnapshot(now), false]
+    ['fallback', () => loadFallback(now, { logger }), false],
+    ['kobo99-tracker', () => loadTracker(now, { logger }), false],
+    ['fallback-file', () => loadSnapshot(now, { logger }), false]
   ];
   for (const [stage, read, official] of stages) {
     try {

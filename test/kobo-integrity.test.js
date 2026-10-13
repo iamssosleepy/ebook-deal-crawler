@@ -149,7 +149,7 @@ test('missing W37 reports separate safe stage errors and never returns old data'
   const later = watchers();
   const old = fullRows().map(r => ({ ...r, sourcePage: target.replace('w37', 'w36') }));
   await assert.rejects(fetchKoboDeals({ now, logger: { log() {}, warn: m => warnings.push(m) }, ...later,
-    fetchMarkdown: unavailable, loadLocal: async () => old, fetchHtml: async () => '<h1>Unavailable</h1>' }), error => {
+    fetchMarkdown: unavailable, loadLocal: async () => old, fetchHtml: async () => '<h1>Unavailable</h1>', loadTracker: async () => [] }), error => {
     assert.equal(error.code, 'KOBO_CAMPAIGN_UNAVAILABLE');
     assert.deepEqual(error.failures, [
       { stage: 'markdown', code: 'KOBO_READ_FAILED' },
@@ -157,13 +157,14 @@ test('missing W37 reports separate safe stage errors and never returns old data'
       { stage: 'html', code: 'KOBO_EMPTY' },
       { stage: 'cache', code: 'KOBO_EMPTY' },
       { stage: 'fallback', code: 'KOBO_EMPTY' },
+      { stage: 'kobo99-tracker', code: 'KOBO_EMPTY' },
       { stage: 'fallback-file', code: 'KOBO_EMPTY' }
     ]);
-    assert.equal(error.message, 'Kobo 2026-W37 unavailable: markdown=KOBO_READ_FAILED, local=KOBO_INVALID_SOURCE, html=KOBO_EMPTY, cache=KOBO_EMPTY, fallback=KOBO_EMPTY, fallback-file=KOBO_EMPTY');
+    assert.equal(error.message, 'Kobo 2026-W37 unavailable: markdown=KOBO_READ_FAILED, local=KOBO_INVALID_SOURCE, html=KOBO_EMPTY, cache=KOBO_EMPTY, fallback=KOBO_EMPTY, kobo99-tracker=KOBO_EMPTY, fallback-file=KOBO_EMPTY');
     assert.ok(!error.message.includes('SENSITIVE_REMOTE_BODY'));
     return true;
   });
   assert.deepEqual(later.calls, ['read', 'fallback', 'snapshot']);
-  assert.equal(warnings.length, 6);
+  assert.equal(warnings.length, 7);
   assert.ok(warnings.every(w => !w.includes('SENSITIVE_REMOTE_BODY')));
 });

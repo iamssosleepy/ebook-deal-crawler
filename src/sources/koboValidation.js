@@ -37,16 +37,13 @@ export function isKoboBook(value) {
   return isKoboUrl(value, /^\/(tw|hk)\/zh\/ebook\/[^/]+\/?$/);
 }
 
-export function validateKoboCampaign(deals, year, week, { allowHelloRuru = false } = {}) {
+export function validateKoboCampaign(deals, year, week) {
   const fail = code => { throw Object.assign(new Error(code), { code }); };
   if (!Array.isArray(deals) || !deals.length) fail('KOBO_EMPTY');
   const dates = campaignDates(year, week);
   const seen = new Set();
   for (const row of deals) {
-    const citedSnapshot = allowHelloRuru && row?.sourcePage === 'https://tools.helloruru.com/ebook-deals/' &&
-      row.fetchMethod === 'helloruru-public-api-snapshot' && row.confidence === 'medium' &&
-      isCampaignSource(row.upstreamSourcePage, year, week);
-    if (!row || !(isCampaignSource(row.sourcePage, year, week) || citedSnapshot)) fail('KOBO_INVALID_SOURCE');
+    if (!row || !isCampaignSource(row.sourcePage, year, week)) fail('KOBO_INVALID_SOURCE');
     if (typeof row.title !== 'string' || !row.title.trim() ||
         !dates.includes(row.startDate) || row.endDate !== row.startDate ||
         !isKoboBook(row.url)) fail('KOBO_INVALID_ROW');

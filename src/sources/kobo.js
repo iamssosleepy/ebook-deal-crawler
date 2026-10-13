@@ -7,7 +7,8 @@ import { absoluteUrl, cleanText, stripTracking } from '../utils/text.js';
 import { isoDateFromTaiwanMonthDay } from '../utils/date.js';
 import { fetchOfficialMarkdown } from '../utils/proxy.js';
 import { campaignWeek, campaignDates, isCampaignSource, isKoboBook, validateKoboCampaign } from './koboValidation.js';
-import { loadKoboSnapshot } from './koboSnapshot.js';
+import { fetchKoboFallbackApi, loadKoboSnapshot } from './koboSnapshot.js';
+import { koboCacheDir, readKoboWeekCache, writeKoboWeekCache } from './koboCache.js';
 
 const CONFIG = SOURCES.kobo;
 const DEFAULT_LOCAL_JSONL = '/home/wch/Projects/personal/kobo-weekly-book-list/data/books.jsonl';
@@ -75,41 +76,84 @@ export async function loadLocalKoboDeals(year, week, filePath = process.env.KOBO
   }
 }
 
-export async function fetchKoboDeals({ now = new Date(), fetchMarkdown = fetchKoboMarkdown,
-  loadLocal = loadLocalKoboDeals, fetchHtml = fetchKoboHtml, loadSnapshot = loadKoboSnapshot, logger = console } = {}) {
+const STAGE_CODES = new Set([
+  'KOBO_EMPTY',
+  'KOBO_INVALID_SOURCE',
+  'KOBO_INVALID_ROW',
+  'KOBO_INCOMPLETE_DATES',
+  'KOBO_CACHE_INVALID',
+  'KOBO_FALLBACK_FAILED',
+  'KOBO_SNAPSHOT_INVALID',
+  'KOBO_SNAPSHOT_INVALID_ROW',
+  'KOBO_SNAPSHOT_TOO_LARGE',
+  'KOBO_FALLBACK_DISABLED'
+]);
+
+function resolveKoboFallbackUrl() {
+  const configured = process.env.KOBO_FALLBACK_URL;
+  if (typeof configured !== 'string') return null;
+  const trimmed = configured.trim();
+  if (!trimmed || trimmed === 'off') return null;
+  return trimmed;
+}
+
+function defaultReadCache({ year, week }) {
+  return readKoboWeekCache({ year, week, dir: koboCacheDir() });
+}
+
+function defaultWriteCache(payload) {
+  return writeKoboWeekCache({ ...payload, dir: koboCacheDir() });
+}
+
+async function defaultLoadFallback(now) {
+  const url = resolveKoboFallbackUrl();
+  if (url === null) throw Object.assign(new Error('KOBO_FALLBACK_DISABLED'), { code: 'KOBO_FALLBACK_DISABLED' });
+  return fetchKoboFallbackApi(now, { url });
+}
+
+export async function fetchKoboDeals({
+  now = new Date(),
+  fetchMarkdown = fetchKoboMarkdown,
+  loadLocal = loadLocalKoboDeals,
+  fetchHtml = fetchKoboHtml,
+  readCache = defaultReadCache,
+  writeCache = defaultWriteCache,
+  loadFallback = defaultLoadFallback,
+  loadSnapshot = loadKoboSnapshot,
+  logger = console
+} = {}) {
   const { year, week } = campaignWeek(now);
-  try {
-    const snapshot = await loadSnapshot(now);
-    if (snapshot) {
-      validateKoboCampaign(snapshot, year, week, { allowHelloRuru: true });
-      logger.log(`kobo: W${week} HelloRuru snapshot validated ${snapshot.length} rows (secondary source)`);
-      return snapshot;
-    }
-  } catch {
-    logger.warn(`kobo: W${week} KOBO_SNAPSHOT_REJECTED`);
-  }
   const articleUrl = `https://www.kobo.com/zh/blog/weekly-dd99-${year}-w${week}/`;
   const failures = [];
   const stages = [
-    ['markdown', async () => parseKoboMarkdown(await fetchMarkdown(articleUrl), articleUrl, year)],
-    ['local', () => loadLocal(year, week)],
+    ['markdown', async () => parseKoboMarkdown(await fetchMarkdown(articleUrl), articleUrl, year), true],
+    ['local', () => loadLocal(year, week), false],
     // Never choose a category page's first (possibly old) campaign.
-    ['html', async () => parseKoboHtml(await fetchHtml(articleUrl), articleUrl, year)]
+    ['html', async () => parseKoboHtml(await fetchHtml(articleUrl), articleUrl, year), true],
+    ['cache', () => readCache({ year, week }), false],
+    ['fallback', () => loadFallback(now), false],
+    ['fallback-file', () => loadSnapshot(now), false]
   ];
-  for (const [stage, read] of stages) {
+  for (const [stage, read, official] of stages) {
     try {
       const deals = validateKoboCampaign(await read(), year, week);
       logger.log(`kobo: W${week} ${stage} validated ${deals.length} rows`);
+      if (official) {
+        try {
+          await writeCache({ year, week, rows: deals, now, stage });
+        } catch {
+          try { logger.warn(`kobo: W${week} cache KOBO_CACHE_WRITE_FAILED`); } catch { /* keep the official rows */ }
+        }
+      }
       return deals;
     } catch (error) {
-      const allowed = ['KOBO_EMPTY', 'KOBO_INVALID_SOURCE', 'KOBO_INVALID_ROW', 'KOBO_INCOMPLETE_DATES'];
-      const code = allowed.includes(error?.code) ? error.code : 'KOBO_READ_FAILED';
+      const code = STAGE_CODES.has(error?.code) ? error.code : 'KOBO_READ_FAILED';
       failures.push({ stage, code });
       // Do not echo remote response bodies, credentials, or untrusted error text.
       logger.warn(`kobo: W${week} ${stage} ${code}`);
     }
   }
-  throw Object.assign(new Error(`Kobo ${year}-W${week} unavailable: ${failures.map(f => `${f.stage}=${f.code}`).join(', ')}`), {
+  throw Object.assign(new Error(`Kobo ${year}-W${week} unavailable: ${failures.map(item => `${item.stage}=${item.code}`).join(', ')}`), {
     code: 'KOBO_CAMPAIGN_UNAVAILABLE', failures
   });
 }

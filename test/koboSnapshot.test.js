@@ -77,8 +77,12 @@ test('static snapshot is used only after live stages, cache, and the live fallba
       calls.push('fallback');
       throw Object.assign(new Error('KOBO_FALLBACK_FAILED'), { code: 'KOBO_FALLBACK_FAILED' });
     },
+    loadTracker: async () => {
+      calls.push('tracker');
+      throw Object.assign(new Error('KOBO_TRACKER_FAILED'), { code: 'KOBO_TRACKER_FAILED' });
+    },
     loadSnapshot: async () => { calls.push('file'); return parseKoboSnapshot(fixture(), now); } });
-  assert.deepEqual(calls, ['markdown', 'local', 'html', 'cache', 'fallback', 'file']);
+  assert.deepEqual(calls, ['markdown', 'local', 'html', 'cache', 'fallback', 'tracker', 'file']);
   assert.equal(result.length, 7);
   assert.equal(result[0].fetchMethod, 'kobo-fallback');
   assert.equal(result[0].sourcePage, 'https://www.kobo.com/zh/blog/weekly-dd99-2026-w37/');

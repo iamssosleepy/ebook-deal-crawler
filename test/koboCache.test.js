@@ -489,6 +489,7 @@ test('KOBO_FALLBACK_URL unset, empty, or off disables the live fallback; a URL e
     fetchHtml: async () => { throw new Error('html blocked'); },
     readCache: async () => null,
     writeCache: async () => {},
+    loadTracker: async () => null,
     loadSnapshot: async () => null
   };
   try {

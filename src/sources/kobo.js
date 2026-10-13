@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import fs from 'node:fs/promises';
-import { chromium } from 'playwright';
+import { openHeaded, withHeadedBrowser } from '../utils/headedBrowser.js';
 import { SOURCES } from '../../config/sources.js';
 import { fetchHtml } from '../utils/http.js';
 import { absoluteUrl, cleanText, stripTracking } from '../utils/text.js';
@@ -16,19 +16,14 @@ const DEFAULT_LOCAL_JSONL = '/home/wch/Projects/personal/kobo-weekly-book-list/d
 async function fetchKoboHtml(url) {
   try {
     return await fetchHtml(url);
-  } catch (error) {
-    const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({
-      locale: 'zh-TW',
-      timezoneId: 'Asia/Taipei'
-    });
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(2500);
-      return await page.content();
-    } finally {
-      await browser.close();
+  } catch {
+    // Headless Chromium is always challenged by Kobo's Cloudflare, so go straight to a headed
+    // browser (private Xvfb when there is no display). One page load, no retries here.
+    const result = await withHeadedBrowser(browser => openHeaded(browser, url));
+    if (result.status !== 200) {
+      throw Object.assign(new Error(`KOBO_HTTP_${result.status}`), { code: 'KOBO_READ_FAILED' });
     }
+    return result.html;
   }
 }
 
@@ -165,6 +160,25 @@ export function parseKoboHtml(html, articleUrl, year = campaignWeek().year) {
   const $ = cheerio.load(html);
   const deals = [];
 
+  // Assign every Kobo book link to the nearest preceding campaign heading in document order.
+  // Kobo's markup puts the link inside the heading and in sibling "book-block" containers, and
+  // the link text varies (or is empty for cover images), so never depend on the label.
+  const linksByHeading = new Map();
+  let current = null;
+  $('h2, h3, a[href]').each((_, node) => {
+    const tag = node.tagName?.toLowerCase();
+    if (tag === 'h2' || tag === 'h3') {
+      current = /Kobo99選書/.test(cleanText($(node).text())) ? node : null;
+      if (current) linksByHeading.set(current, { tw: '', hk: '' });
+      return;
+    }
+    if (!current) return;
+    const href = absoluteUrl($(node).attr('href'), articleUrl);
+    const slot = linksByHeading.get(current);
+    if (!slot.tw && isKoboBook(href) && /^https:\/\/www\.kobo\.com\/tw\/zh\/ebook\//.test(href)) slot.tw = href;
+    else if (!slot.hk && isKoboBook(href) && /^https:\/\/www\.kobo\.com\/hk\/zh\/ebook\//.test(href)) slot.hk = href;
+  });
+
   $('h2, h3').each((_, heading) => {
     const headingText = cleanText($(heading).text());
     if (!/Kobo99選書/.test(headingText)) return;
@@ -191,20 +205,13 @@ export function parseKoboHtml(html, articleUrl, year = campaignWeek().year) {
       if (authorMatch) author = cleanText(authorMatch[1]);
       const publisherMatch = text.match(/出版社[:：]\s*([^\s]+)/);
       if (publisherMatch) publisher = cleanText(publisherMatch[1]);
-      node.find('a[href]').each((_, link) => {
-        const label = cleanText($(link).text());
-        const href = absoluteUrl($(link).attr('href'), articleUrl);
-        if (/查看電子書/.test(label) && /\/ebook\//.test(href)) {
-          if (/HK/.test(label)) hkUrl = href;
-          else twUrl = href;
-        }
-      });
       const img = node.find('img').first();
       if (img.length && !coverUrl) {
         coverUrl = absoluteUrl(img.attr('src') || img.attr('data-src'), articleUrl);
       }
     }
 
+    ({ tw: twUrl, hk: hkUrl } = linksByHeading.get(heading) || { tw: '', hk: '' });
     deals.push({
       platform: CONFIG.platform,
       campaignType: '每日99書單',
